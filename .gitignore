@@ -1,0 +1,50 @@
+# Build folders
+build/
+install/
+log/
+devel/
+cmake-build-debug/
+
+# ROS 1 / catkin
+*.catkin
+catkin_ws/build/
+catkin_ws/devel/
+
+# IDE / editor files
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+*.idea/
+*.vscode/
+*.cbp
+*.opensdf
+*.user
+*.pro.user*
+*.directory
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+*.pyc
+*.pyo
+*.class
+
+# System files
+.DS_Store
+Thumbs.db
+
+# ROS bags and logs
+*.bag
+*.bag.active
+*.bag.index
+*.bag.metadata
+
+# Docker
+*.env
+docker-compose.override.yml
+
+# MATLAB
+*.asv
+*.m~
