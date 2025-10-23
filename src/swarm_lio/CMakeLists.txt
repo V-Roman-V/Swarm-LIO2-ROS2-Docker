@@ -1,11 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(swarm_lio)
 
-SET(CMAKE_BUILD_TYPE "Release")
+set(CMAKE_BUILD_TYPE "Release")
 
-ADD_COMPILE_OPTIONS(-std=c++14 )
-ADD_COMPILE_OPTIONS(-std=c++14 )
-set( CMAKE_CXX_FLAGS "-std=c++14 -O3" ) 
 
 add_definitions(-DROOT_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\")
 
@@ -13,7 +10,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fexceptions" )
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -pthread -fexceptions")
 
 message("Current CPU archtecture: ${CMAKE_SYSTEM_PROCESSOR}")
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)" )
@@ -35,9 +32,16 @@ else()
   add_definitions(-DMP_PROC_NUM=1)
 endif()
 
-find_package(OpenMP QUIET)
+find_package(OpenMP REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
+
+find_package(TBB REQUIRED)
+
+find_package(GTSAM REQUIRED)
+message(STATUS "GTSAM_LIBRARIES: ${GTSAM_LIBRARIES}")
+message(STATUS "GTSAM_INCLUDE_DIR: ${GTSAM_INCLUDE_DIR}")
+set(GTSAM_LIBRARIES gtsam)  # or the path to libgtsam.so
 
 find_package(PythonLibs REQUIRED)
 find_path(MATPLOTLIB_CPP_INCLUDE_DIRS "matplotlibcpp.h")
@@ -63,7 +67,6 @@ find_package(PCL 1.8 REQUIRED)
 message(Eigen: ${EIGEN3_INCLUDE_DIR})
 
 include_directories(
-     ../../../devel/include
 	${catkin_INCLUDE_DIRS} 
   ${EIGEN3_INCLUDE_DIR}
   ${PCL_INCLUDE_DIRS}
@@ -83,7 +86,7 @@ generate_messages(
 )
 
 catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime
+  CATKIN_DEPENDS geometry_msgs nav_msgs swarm_msgs roscpp rospy std_msgs message_runtime
   DEPENDS EIGEN3 PCL
   INCLUDE_DIRS
 )
@@ -100,10 +103,6 @@ target_link_libraries(swarm_lio
         ${PCL_LIBRARIES}
         ${PYTHON_LIBRARIES}
         ${GTSAM_LIBRARIES}
-        -lgtsam
-        -ltbb
+        TBB::tbb
         )
 target_include_directories(swarm_lio PRIVATE ${PYTHON_INCLUDE_DIRS})
-
-
-

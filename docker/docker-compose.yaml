@@ -1,0 +1,18 @@
+services:
+  swarm_lio2_ros1:
+    container_name: swarm_lio2_ros1
+    image: swarm-lio2-ros1
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ros1
+    volumes:
+      - ../src:/opt/swarm_lio_ws/src:rw
+    working_dir: /opt/swarm_lio_ws
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_PACKAGE_PATH=/opt/swarm_lio_ws/src:/opt/ros/noetic/share
+      - DEBIAN_FRONTEND=noninteractive
+    network_mode: host
+    tty: true
+    stdin_open: true
+    command: ["/bin/bash"]
