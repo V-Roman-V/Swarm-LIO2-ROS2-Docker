@@ -1,7 +1,10 @@
-# Swarm-LIO2-ROS2-Docker
+# Swarm-LIO2-ROS1-Docker
+
+> This branch contains the **ROS 1 (Noetic)** Dockerized version of Swarm-LIO2.  
+> The ROS 2 port is developed in a [`main`](https://github.com/V-Roman-V/Swarm-LIO2-ROS2-Docker/tree/main) branch.
 
 <div align="center">
-    <h2>Swarm-LIO2-ROS2-Docker: ROS 2 and Docker Port of Swarm-LIO2</h2>
+    <h2>Swarm-LIO2-Docker: Docker Port of Swarm-LIO2</h2>
     <strong>Open-source community fork of HKU-MARS Swarm-LIO2</strong>
     <br><br>
     <a href="https://github.com/hku-mars/Swarm-LIO2" target="_blank">
@@ -15,11 +18,7 @@
 
 ### Introduction
 
-**Swarm-LIO2-ROS2-Docker** is an **open-source community-driven port** of [**Swarm-LIO2**](https://github.com/hku-mars/Swarm-LIO2),  
-rewritten to support **ROS 2** and **Docker-based deployment**.
-
-The goal is to make Swarm-LIO2 easier to integrate into modern robotics stacks using **ROS 2 Humble** distribution,  
-and to simplify reproducible builds through **containerization**.
+**Swarm-LIO2-Docker** is an **open-source community-driven port** of [**Swarm-LIO2**](https://github.com/hku-mars/Swarm-LIO2), rewritten to support **Docker-based deployment**.
 
 Swarm-LIO2 is a *decentralized, efficient LiDAR-inertial odometry and mapping framework* designed for UAV swarms,  
 developed by the **HKU MARS Lab** and published in *IEEE Transactions on Robotics 2025*.
@@ -31,68 +30,73 @@ developed by the **HKU MARS Lab** and published in *IEEE Transactions on Robotic
 | Component | Status |
 |------------|:------:|
 | Repository setup | ✅ |
-| ROS 2 package structure | 🚧 In progress |
-| Core node porting (lio_sam, swarm_lio) | ⏳ Planned |
-| ROS 2 launch files | ⏳ Planned |
-| Dockerfile (base + runtime images) | 🚧 In progress |
-| Simulation / example data testing | ⏳ Planned |
+| Dockerfile | ✅ |
+| Simulation / example data testing | In progress |
+| Documentation | In progress |
 
 ---
 
-### Planned Tech Stack
+### Quick Start (ROS 1)
 
-- **ROS 2 Humble**
-- **Ubuntu 22.04**
-- **GTSAM** (latest stable)
-- **PCL ≥ 1.12**
-- **Eigen ≥ 3.4**
-- **Livox ROS Driver 2 (ROS 2 branch)**
+1. **Build Docker image**
+
+   ```bash
+   cd docker
+   docker compose build
+   ```
+
+2. **Start container**
+
+   ```bash
+   docker compose up
+   ```
+
+3. **TODO**
+
+---
+
+### Tech Stack
+
+- **ROS 1 Noetic** (`ros:noetic-ros-base`)
+- **Ubuntu 20.04** (Focal Fossa)
+- **GTSAM 4.2** (built from [GTSAM repo](https://github.com/borglab/gtsam.git))
+- **Livox SDK** (built from [Livox-SDK repo](https://github.com/Livox-SDK/Livox-SDK))
+- **PCL** (via `libpcl-dev` + `ros-noetic-pcl-ros`)
+- **Eigen3** (`libeigen3-dev`)
+- **Boost**, **TBB**, and **METIS** for graph optimization
+- **MAVROS** + **MAVROS Extras**
+- **TF**, **CV Bridge**, **Image Transport**, **Visualization Msgs**
+- **Python 3.8**, `matplotlib`, `pip`
 - **Docker + docker-compose**
 
 ---
 
-### Repository Structure (Planned)
+### Testing
 
-```plaintext
-Swarm-LIO2-ROS2-Docker/
-├── docker/
-│ ├── Dockerfile.base
-│ ├── Dockerfile.dev
-│ └── docker-compose.yaml
-├── src/
-│ ├── swarm_lio2/
-│ ├── udp_bridge/
-│ └── common/
-├── launch/
-│ ├── single_uav.launch.xml
-│ └── multi_uav.launch.xml
-├── config/
-│ └── params.yaml
-└── README.md
-```
+For testing, [S3E dataset](https://pengyu-team.github.io/S3E) was used.
+
+The tests were performed on the **S3E_Square_1** and **TODO** sequences.
+
+### Results
+
+*TODO*
+
 ---
 
-### TODO Roadmap
+### Roadmap
 
 #### Phase 1: Setup & Porting
 - [x] Fork original repository  
-- [x] Define ROS 2 and Docker roadmap  
-- [ ] Create ROS 2 package structure
-- [ ] Port core Swarm-LIO2 nodes (C++)  
-- [ ] Replace `ros::Publisher/Subscriber` with `rclcpp` equivalents  
-- [ ] Update message definitions to ROS 2 `.msg` types  
+- [x] Define ROS 1 and Docker roadmap  
+- [x] Create Dockerfiles for build/runtime  
+- [x] Add multi-stage build support (builder → runtime image)  
 
-#### Phase 2: Build System & Docker
-- [ ] Create Dockerfiles for build/runtime  
-- [ ] Add multi-stage build support (builder → runtime image)  
-
-#### Phase 3: Launch & Testing
-- [ ] Write ROS 2 launch XML files  
-- [ ] Test with Livox ROS 2 drivers and real/simulated data  
+#### Phase 2: Testing
+- [ ] Test with simulated data
 - [ ] Publish example bags and setup guide  
 
-#### Phase 4: Documentation
-- [ ] Add installation & usage instructions  
+#### Phase 3: Documentation
+- [ ] Add installation & usage instructions 
 
 ---
 
@@ -112,7 +116,7 @@ Videos:
 ### License and Attribution
 
 Based on [Swarm-LIO2](https://github.com/hku-mars/Swarm-LIO2) © HKU MARS Lab.  
-ROS 2 and Docker port maintained by **Roman Voronov**.  
+Docker port maintained by **Roman Voronov**.  
 This fork follows the same license as the original project.
 
 ---
@@ -121,7 +125,6 @@ This fork follows the same license as the original project.
 
 Contributions are very welcome!  
 If you’re interested in:
-- helping with ROS 2 migration,
 - testing in real UAV environments,
 - or improving documentation —
 

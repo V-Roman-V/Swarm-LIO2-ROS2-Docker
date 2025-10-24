@@ -48,3 +48,8 @@ docker-compose.override.yml
 # MATLAB
 *.asv
 *.m~
+
+# Ignore ROS bag data
+bags/**/*.bag
+bags/**/*.bag.active
+bags/**/*.db3
