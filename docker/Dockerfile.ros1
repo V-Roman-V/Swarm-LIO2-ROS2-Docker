@@ -41,6 +41,12 @@ FROM dependencies AS swarm_lio2
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_WS=/opt/swarm_lio_ws
 
+# Install additional dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-noetic-rviz \
+    mesa-utils libgl1-mesa-glx \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create catkin workspace
 RUN mkdir -p $ROS_WS/src
 WORKDIR $ROS_WS/src
