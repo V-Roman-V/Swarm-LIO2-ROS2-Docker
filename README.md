@@ -46,7 +46,6 @@ developed by the **HKU MARS Lab** and published in *IEEE Transactions on Robotic
 - **GTSAM** (latest stable)
 - **PCL ≥ 1.12**
 - **Eigen ≥ 3.4**
-- **Livox ROS Driver 2 (ROS 2 branch)**
 - **Docker + docker-compose**
 
 ---
@@ -88,7 +87,6 @@ Swarm-LIO2-ROS2-Docker/
 
 #### Phase 3: Launch & Testing
 - [ ] Write ROS 2 launch XML files  
-- [ ] Test with Livox ROS 2 drivers and real/simulated data  
 - [ ] Publish example bags and setup guide  
 
 #### Phase 4: Documentation

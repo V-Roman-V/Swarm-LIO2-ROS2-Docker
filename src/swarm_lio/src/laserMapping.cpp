@@ -12,7 +12,6 @@
 #include <pcl/io/pcd_io.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
-#include <livox_ros_driver/CustomMsg.h>
 #include "preprocess.h"
 #include <ikd-Tree/ikd_Tree.h>
 #include "MultiUAV.h"
@@ -489,72 +488,6 @@ void lasermap_fov_segment() {
     if (cub_needrm.size() > 0)
         kdtree_delete_counter = ikdtree.Delete_Point_Boxes(cub_needrm);
     // printf("Delete Box: %d\n",int(cub_needrm.size()));
-}
-
-void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg) {
-    scan_count++;
-    TimeConsuming t1("Preprocess time");
-    mtx_buffer_lidar.lock();
-    if (msg->header.stamp.toSec() < last_timestamp_lidar) {
-        ROS_WARN("lidar loop back, clear buffer");
-        lidar_buffer.clear();
-        time_buffer.clear();
-    }
-    last_timestamp_lidar = msg->header.stamp.toSec();
-
-    if(accumulate_frame_en && !cut_frame_en){
-        static PointCloudXYZI::Ptr ptr_accumulate(new PointCloudXYZI());
-        static double first_lidar_head_time = msg->header.stamp.toSec();
-        //合帧2s，合成后的每一帧的点云数目和10Hz点云相同
-        if(scan_count < 2 * original_frequency){
-            if(scan_count % (original_frequency/10) == 0)
-                first_lidar_head_time = msg->header.stamp.toSec();
-
-            p_pre->process_accumulate_frame_livox(msg, ptr_accumulate, first_lidar_head_time);
-            if(scan_count % (original_frequency/10) != 0){
-                mtx_buffer_lidar.unlock();
-                sig_buffer.notify_all();
-                return;
-            }
-            else
-            {
-                PointCloudXYZI::Ptr pcl_temp(new PointCloudXYZI());
-                PointCloudXYZI pcl_temp1;
-                pcl_temp1.clear();
-                pcl_temp1 = *ptr_accumulate;
-                *pcl_temp = pcl_temp1;
-                lidar_buffer.push_back(pcl_temp);
-                time_buffer.push_back(first_lidar_head_time);
-                ptr_accumulate->clear();
-            }
-        }else{
-            PointCloudXYZI::Ptr ptr(new PointCloudXYZI());
-            p_pre->process(msg, ptr);
-            lidar_buffer.push_back(ptr);
-            time_buffer.push_back(last_timestamp_lidar);
-        }
-    }else if(cut_frame_en && !accumulate_frame_en){
-        deque<PointCloudXYZI::Ptr> ptr;//存储切割后的每一帧点云，每个点的curvature是相对于新的帧头的偏移时间
-        deque<double> timestamp_lidar; //存储切割后每一帧的帧头时间（原绝对时间轴上的值）
-        //输入原始的一帧点云数据，输出切割后的10帧点云和每一帧的帧头时间戳
-        p_pre->process_cut_frame_livox(msg, ptr, timestamp_lidar, cut_frame_num, scan_count);
-        //将切割后的点云和时间戳存入lidar_buffer和time_buffer，同时弹出ptr和timestamp_lidar
-        while (!ptr.empty() && !timestamp_lidar.empty()) {
-            lidar_buffer.push_back(ptr.front());
-            ptr.pop_front();
-            time_buffer.push_back(timestamp_lidar.front() / double(1000));//单位:s
-            timestamp_lidar.pop_front();
-        }
-    }else{
-        PointCloudXYZI::Ptr ptr(new PointCloudXYZI());
-        p_pre->process(msg, ptr);
-        lidar_buffer.push_back(ptr);
-        time_buffer.push_back(last_timestamp_lidar);
-    }
-    double t1_time = t1.stop() * 1000;
-    ave_pre_processing_time += (t1_time - ave_pre_processing_time) / scan_count;
-    mtx_buffer_lidar.unlock();
-    sig_buffer.notify_all();
 }
 
 void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg) {
@@ -1369,9 +1302,7 @@ int main(int argc, char **argv) {
 
 
     /*** ROS subscribe initialization ***/
-    ros::Subscriber sub_pcl = p_pre->lidar_type == AVIA ? \
-        nh.subscribe(lid_topic, 200000, livox_pcl_cbk) : \
-         nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
+    ros::Subscriber sub_pcl = nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
 
 
 

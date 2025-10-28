@@ -53,11 +53,6 @@ RUN git clone --branch 4.2 https://github.com/borglab/gtsam.git gtsam && \
     make -j$(nproc) && make install && \
     cp /usr/local/lib/libgtsam*.so /usr/lib/
 
-# ---- Livox SDK ----
-WORKDIR /tmp/livox
-RUN git clone https://github.com/Livox-SDK/Livox-SDK.git
-WORKDIR /tmp/livox/Livox-SDK/build
-RUN cmake -DCMAKE_BUILD_TYPE=Release .. && make -j$(nproc) && make install
 
 # ==============================
 #  Stage 2 — Swarm-LIO2 build
