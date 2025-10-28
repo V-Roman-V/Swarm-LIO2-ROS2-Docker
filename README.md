@@ -31,9 +31,10 @@ developed by the **HKU MARS Lab** and published in *IEEE Transactions on Robotic
 | Component | Status |
 |------------|:------:|
 | Repository setup | ✅ |
-| ROS 2 package structure | 🚧 In progress |
+| ROS 2 package structure | ✅ |
 | Core node porting (lio_sam, swarm_lio) | ⏳ Planned |
-| ROS 2 launch files | ⏳ Planned |
+| udp_bridge ROS 2 port | ✅ |
+| swarm_msgs ROS 2 port | ✅ |
 | Dockerfile (base + runtime images) | 🚧 In progress |
 | Simulation / example data testing | ⏳ Planned |
 
@@ -76,17 +77,18 @@ Swarm-LIO2-ROS2-Docker/
 #### Phase 1: Setup & Porting
 - [x] Fork original repository  
 - [x] Define ROS 2 and Docker roadmap  
-- [ ] Create ROS 2 package structure
+- [x] Create ROS 2 package structure
+- [x] Update message definitions to ROS 2 `.msg` types (package: `swarm_msgs`)  
+- [x] Port `udp_bridge` package to ROS 2 (`rclcpp`, timers, pubs/subs)  
 - [ ] Port core Swarm-LIO2 nodes (C++)  
-- [ ] Replace `ros::Publisher/Subscriber` with `rclcpp` equivalents  
-- [ ] Update message definitions to ROS 2 `.msg` types  
+- [ ] Replace `ros::Publisher/Subscriber` with `rclcpp` equivalents in core nodes  
 
 #### Phase 2: Build System & Docker
-- [ ] Create Dockerfiles for build/runtime  
+- [x] Create Dockerfiles for build/runtime (Humble-based image builds successfully)  
 - [ ] Add multi-stage build support (builder → runtime image)  
 
 #### Phase 3: Launch & Testing
-- [ ] Write ROS 2 launch XML files  
+- [x] Write ROS 2 launch files (Python) for `udp_bridge`  
 - [ ] Publish example bags and setup guide  
 
 #### Phase 4: Documentation
