@@ -1,6 +1,5 @@
 #ifndef TEAMMATE_HPP
 #define TEAMMATE_HPP
-#include <ros/ros.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

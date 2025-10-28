@@ -200,25 +200,26 @@ namespace udp_bridge {
 
 
     static int get_local_ip(char *ip) {
-        struct ifaddrs *ifAddrStruct;
-        void *tmpAddrPtr = NULL;
-        getifaddrs(&ifAddrStruct);
-        while (ifAddrStruct != NULL) {
-            if (ifAddrStruct->ifa_addr->sa_family == AF_INET) {
-                tmpAddrPtr = &((struct sockaddr_in *) ifAddrStruct->ifa_addr)->sin_addr;
-                inet_ntop(AF_INET, tmpAddrPtr, ip, INET_ADDRSTRLEN);
-                if ((ip[0] == '1' && ip[1] == '0' && ip[3] == '0')||
-                    (ip[8] == '2' && ip[9] == '3' && ip[10] == '4' && ip[12] == '1')) {
-                    printf("%s IP Address: %s\n", ifAddrStruct->ifa_name, ip);
-                    // freeifaddrs(ifAddrStruct);
-                    return 0;
-                }
-            }
-            ifAddrStruct = ifAddrStruct->ifa_next;
+        struct ifaddrs *ifAddrStruct = nullptr;
+        if (getifaddrs(&ifAddrStruct) != 0 || ifAddrStruct == nullptr) {
+            return -1;
         }
-        //free ifaddrs
+        int ret = -1;
+        for (struct ifaddrs *ifa = ifAddrStruct; ifa != nullptr; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr == nullptr) continue;
+            if (ifa->ifa_addr->sa_family != AF_INET) continue;
+            void *tmpAddrPtr = &((struct sockaddr_in *) ifa->ifa_addr)->sin_addr;
+            char buf[INET_ADDRSTRLEN] = {0};
+            if (inet_ntop(AF_INET, tmpAddrPtr, buf, INET_ADDRSTRLEN) == nullptr) continue;
+            // Skip loopback
+            if (strncmp(buf, "127.", 4) == 0) continue;
+            // Copy chosen IP
+            strncpy(ip, buf, INET_ADDRSTRLEN);
+            ret = 0;
+            break;
+        }
         freeifaddrs(ifAddrStruct);
-        return 0;
+        return ret;
     }
 
     std::string GetSystemTime() {

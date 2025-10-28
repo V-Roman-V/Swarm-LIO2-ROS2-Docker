@@ -1,34 +1,26 @@
 <?xml version="1.0"?>
-<package format="2">
+<package format="3">
     <name>udp_bridge</name>
-    <version>0.0.0</version>
-    <description>The udp_bridge package</description>
+    <version>0.0.1</version>
+    <description>ROS 2 UDP bridge for Swarm-LIO2</description>
 
-    <!-- One maintainer tag required, multiple allowed, one person per tag -->
-    <!-- Example:  -->
-    <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-    <maintainer email="renyunfan@outlook.com">yunfan</maintainer>
+    <maintainer email="vor.roman.v@gmail.com">Roman Voronov</maintainer>
     <author email="zhufc@connect.hku.hk">Fangcheng Zhu</author>
 
-    <license>TODO</license>
+    <license>GPL-2.0-only</license>
 
-    <buildtool_depend>catkin</buildtool_depend>
-    <build_depend>roscpp</build_depend>
-    <build_depend>std_msgs</build_depend>
-    <build_depend>sensor_msgs</build_depend>
-    <build_depend>swarm_msgs</build_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
 
-    <build_depend>roslib</build_depend>
-    <exec_depend>roslib</exec_depend>
-    <exec_depend>swarm_msgs</exec_depend>
-    <exec_depend>roscpp</exec_depend>
-    <exec_depend>std_msgs</exec_depend>
-    <exec_depend>sensor_msgs</exec_depend>
+    <depend>rclcpp</depend>
+    <depend>std_msgs</depend>
+    <depend>sensor_msgs</depend>
+    <depend>swarm_msgs</depend>
+    <depend>ament_index_cpp</depend>
+    <depend>eigen</depend>
+    <depend>fmt</depend>
+    <depend>boost</depend>
 
-
-    <!-- The export tag contains other, unspecified, tags -->
     <export>
-        <!-- Other tools can request additional information be placed here -->
-
+        <build_type>ament_cmake</build_type>
     </export>
 </package>

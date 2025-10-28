@@ -71,8 +71,9 @@ COPY src/ $ROS_WS/src/
 
 # Build the workspace
 WORKDIR $ROS_WS
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --merge-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select swarm_msgs"
-# RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --merge-install --cmake-args -DCMAKE_BUILD_TYPE=Release"
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select swarm_msgs"
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select udp_bridge"
+# RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release"
 
 # Source ROS and workspace by default
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc

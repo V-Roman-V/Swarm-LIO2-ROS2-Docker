@@ -1,4 +1,4 @@
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <boost/thread.hpp>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,17 +13,16 @@
 #include "algorithm"
 #include <string>
 #include <map>
-#include "ros/package.h"
-#include "mavros_msgs/BatteryStatus.h"
-#include "swarm_msgs/TeamStatus.h"
-#include "swarm_msgs/TeammateInfo.h"
-#include "swarm_msgs/QuadStatePub.h"
-#include "swarm_msgs/ObserveTeammate.h"
-#include "swarm_msgs/GlobalExtrinsicStatus.h"
-#include "swarm_msgs/GlobalExtrinsic.h"
-#include "swarm_msgs/SpatialTemporalOffset.h"
-#include "swarm_msgs/SpatialTemporalOffsetStatus.h"
-#include "swarm_msgs/ConnectedTeammateList.h"
+#include <ament_index_cpp/get_package_share_directory.hpp>
+#include "swarm_msgs/msg/team_status.hpp"
+#include "swarm_msgs/msg/teammate_info.hpp"
+#include "swarm_msgs/msg/quad_state_pub.hpp"
+#include "swarm_msgs/msg/observe_teammate.hpp"
+#include "swarm_msgs/msg/global_extrinsic_status.hpp"
+#include "swarm_msgs/msg/global_extrinsic.hpp"
+#include "swarm_msgs/msg/spatial_temporal_offset.hpp"
+#include "swarm_msgs/msg/spatial_temporal_offset_status.hpp"
+#include "swarm_msgs/msg/connected_teammate_list.hpp"
 #include <ifaddrs.h>
 #include "Teammate.hpp"
 #include <errno.h>
@@ -33,10 +32,10 @@
 #include <unordered_map>
 #include "so3_math.h"
 #include <Eigen/Eigen>
-#include  "sensor_msgs/BatteryState.h"
+#include  "sensor_msgs/msg/battery_state.hpp"
 #include "udp_bridge/scope_timer.hpp"
 #include <numeric>
-#include <std_msgs/Int8.h>
+#include <std_msgs/msg/int8.hpp>
 
 #define DEBUG_FILE_DIR(name)     (string(string(ROOT_DIR) + "log/"+ name))
 
@@ -56,17 +55,17 @@ using namespace fmt;
 using namespace udp_bridge;
 typedef unordered_map<int, Teammate> id_teammate_map;
 typedef id_teammate_map::value_type position;
-bool exit_process = false;
+std::atomic_bool exit_process = false;
 #define DEBUG_FILE_DIR(name)     (string(string(ROOT_DIR) + "log/"+ name))
 
 
 void SigHandle(int sig) {
-    ROS_WARN("Exit the process, catch sig %d", sig);
+    RCLCPP_WARN(rclcpp::get_logger("swarm_lio2"), "Exit the process, catch sig %d", sig);
     exit_process = true;
 }
 
 
-class UdpBridge {
+class UdpBridge : public rclcpp::Node {
 private:
     int udp_server_fd_;
     int udp_send_ip_fd_ptr_;
@@ -80,12 +79,17 @@ private:
 
     sockaddr_in addr_udp_send_ip_;
     boost::thread *udp_callback_thread_;
-    ros::NodeHandle nh_;
-    ros::Publisher team_status_pub_;
-    ros::Timer sync_timer_, broadcast_timer_, debug_timer_, drone_state_timer_;
-    ros::Publisher QuadState_pub_, GlobalExtrinsic_pub_, ST_OffsetStatus_pub_;
-    ros::Subscriber QuadState_sub_, GlobalExtrinsic_sub_, Battery_sub_, DroneState_sub_, TeammateListTraj_sub_;
-    ros::Time udp_start_time_;
+    rclcpp::Publisher<swarm_msgs::msg::TeamStatus>::SharedPtr team_status_pub_;
+    rclcpp::TimerBase::SharedPtr sync_timer_, broadcast_timer_, debug_timer_, drone_state_timer_;
+    rclcpp::Publisher<swarm_msgs::msg::QuadStatePub>::SharedPtr QuadState_pub_;
+    rclcpp::Publisher<swarm_msgs::msg::GlobalExtrinsicStatus>::SharedPtr GlobalExtrinsic_pub_;
+    rclcpp::Publisher<swarm_msgs::msg::SpatialTemporalOffsetStatus>::SharedPtr ST_OffsetStatus_pub_;
+    rclcpp::Subscription<swarm_msgs::msg::QuadStatePub>::SharedPtr QuadState_sub_;
+    rclcpp::Subscription<swarm_msgs::msg::GlobalExtrinsicStatus>::SharedPtr GlobalExtrinsic_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr Battery_sub_;
+    rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr DroneState_sub_;
+    rclcpp::Subscription<swarm_msgs::msg::ConnectedTeammateList>::SharedPtr TeammateListTraj_sub_;
+    rclcpp::Time udp_start_time_;
     fstream log_writer_;
     ofstream fout_delay;
     vector<int> teammate_id_by_traj_matching;
@@ -95,14 +99,14 @@ private:
 ///////////////////// TEMPLETE FOR A NEW MSG //////////////////////////////
 private:
     struct IpIdData {
-        ros::Timer process_timer;
+        rclcpp::TimerBase::SharedPtr process_timer;
         bool rcv_new_msg{false};
         mutex update_lock_;
         IpIdMsgCvt latest_msg, processing_msg;
-        ros::Time rcv_WT; // The system time when the msg is received.
+        rclcpp::Time rcv_WT; // The system time when the msg is received.
     } ip_id_data_;
 
-    void IpIdMsgCallback_(const ros::TimerEvent &e) {
+    void IpIdMsgCallback_() {
         if (!ip_id_data_.rcv_new_msg) {
             return;
         }
@@ -127,15 +131,15 @@ private:
         if(iter != teammates.end()) {
             if(abs(iter->second.udp_start_time_ - rcv_udp_start_time) > 1.0){
                 teammates.erase(iter);
-                Teammate drone(rcv_ip, rcv_id, ip_id_data_.rcv_WT.toSec(), rcv_udp_start_time);
+                Teammate drone(rcv_ip, rcv_id, ip_id_data_.rcv_WT.seconds(), rcv_udp_start_time);
                 drone.udp_send_fd_ptr_ = InitUdpUnicast(drone, UDP_PORT);
                 teammates.insert(position(rcv_id, drone));
                 print(fg(color::lime_green), " -- [Re-synchronize with Teammate]: UAV{}, {}\n", rcv_id, rcv_ip);
             }else
-                iter->second.last_rcv_time_ = ip_id_data_.rcv_WT.toSec();
+                iter->second.last_rcv_time_ = ip_id_data_.rcv_WT.seconds();
         }
         else{
-            Teammate drone(rcv_ip, rcv_id, ip_id_data_.rcv_WT.toSec(), rcv_udp_start_time);
+            Teammate drone(rcv_ip, rcv_id, ip_id_data_.rcv_WT.seconds(), rcv_udp_start_time);
             drone.udp_send_fd_ptr_ = InitUdpUnicast(drone, UDP_PORT);
             teammates.insert(position(rcv_id, drone));
             print(fg(color::lime_green), " -- [Found New Teammate]: UAV{}, {}\n", rcv_id, rcv_ip);
@@ -146,14 +150,14 @@ private:
 ///////////////////// TIME SYNC MSG //////////////////////////////
 private:
     struct TimeSyncData {
-        ros::Timer process_timer;
+        rclcpp::TimerBase::SharedPtr process_timer;
         bool rcv_new_msg{false};
         mutex update_lock_;
         TimeSyncMsgCvt latest_msg, processing_msg;
-        ros::Time rcv_WT; // The system time when the msg is received.
+        rclcpp::Time rcv_WT; // The system time when the msg is received.
     } time_sync_data_;
 
-    void TimeSyncCallback_(const ros::TimerEvent &e) {
+    void TimeSyncCallback_() {
         if (!time_sync_data_.rcv_new_msg) {
             return;
         }
@@ -175,13 +179,13 @@ private:
                 return;
             }
             //计算公式中的t1,t2,t3,t4
-            ros::Time t4 = ros::Time::now();
-            ros::Time t1, t2, t3;
-            t1.fromNSec(time_sync_data_.processing_msg.data.t1.sec * 1e9 + time_sync_data_.processing_msg.data.t1.nsec);
-            t2.fromNSec(time_sync_data_.processing_msg.data.t2.sec * 1e9 + time_sync_data_.processing_msg.data.t2.nsec);
-            t3.fromNSec(time_sync_data_.processing_msg.data.t3.sec * 1e9 + time_sync_data_.processing_msg.data.t3.nsec);
-            double dt1 = (t2 - t1).toSec();
-            double dt2 = (t4 - t3).toSec();
+            rclcpp::Time t4 = now();
+            rclcpp::Time t1, t2, t3;
+            t1 = rclcpp::Time((int64_t)time_sync_data_.processing_msg.data.t1.sec * 1000000000ll + time_sync_data_.processing_msg.data.t1.nsec);
+            t2 = rclcpp::Time((int64_t)time_sync_data_.processing_msg.data.t2.sec * 1000000000ll + time_sync_data_.processing_msg.data.t2.nsec);
+            t3 = rclcpp::Time((int64_t)time_sync_data_.processing_msg.data.t3.sec * 1000000000ll + time_sync_data_.processing_msg.data.t3.nsec);
+            double dt1 = (t2 - t1).seconds();
+            double dt2 = (t4 - t3).seconds();
 
             double offset_t = 0.5 * (dt1) - 0.5 * (dt2);
             double dt = (dt1) + (dt2);
@@ -205,31 +209,31 @@ private:
         if (iter != teammates.end()) {
             auto &drone = iter->second;
             //如果队友ID已经存放在我的队友列表中，则需要记录 t2 t3 返回给指定ID
-            time_sync_data_.processing_msg.data.t2.nsec = time_sync_data_.rcv_WT.nsec;
-            time_sync_data_.processing_msg.data.t2.sec = time_sync_data_.rcv_WT.sec;
-            ros::Time t3 = ros::Time::now();
-            time_sync_data_.processing_msg.data.t3.sec = t3.sec;
-            time_sync_data_.processing_msg.data.t3.nsec = t3.nsec;
+            time_sync_data_.processing_msg.data.t2.nsec = (uint32_t)(time_sync_data_.rcv_WT.nanoseconds() % 1000000000ll);
+            time_sync_data_.processing_msg.data.t2.sec = (int32_t)(time_sync_data_.rcv_WT.nanoseconds() / 1000000000ll);
+            rclcpp::Time t3 = now();
+            time_sync_data_.processing_msg.data.t3.sec = (int32_t)(t3.nanoseconds() / 1000000000ll);
+            time_sync_data_.processing_msg.data.t3.nsec = (uint32_t)(t3.nanoseconds() % 1000000000ll);
             int len = sizeof(time_sync_data_.processing_msg.binary) + 2 * sizeof(uint32_t);
-            char send_buf[len * 5];
-            EncodeMsgToBuffer(MESSAGE_TYPE::TIME_SYNC, time_sync_data_.processing_msg, send_buf);
-            if (sendto(drone.udp_send_fd_ptr_, send_buf, len, 0, (struct sockaddr *) &drone.addr_udp_send_,
+            std::vector<char> send_buf(len * 5);
+            EncodeMsgToBuffer(MESSAGE_TYPE::TIME_SYNC, time_sync_data_.processing_msg, send_buf.data());
+            if (sendto(drone.udp_send_fd_ptr_, send_buf.data(), len, 0, (struct sockaddr *) &drone.addr_udp_send_,
                        sizeof(drone.addr_udp_send_)) <= 0) {
-                ROS_ERROR("UDP SEND BACK ERROR!!!");
+                RCLCPP_ERROR(get_logger(), "UDP SEND BACK ERROR!!!");
             }
         }
     }
 
 ///////////////////// QUADSTATE MSG //////////////////////////////
     struct QuadStateData {
-        ros::Timer process_timer;
+        rclcpp::TimerBase::SharedPtr process_timer;
         bool rcv_new_msg{false};
         mutex update_lock_;
         QuadStateCvt latest_msg, processing_msg;
-        ros::Time rcv_WT; // The system time when the msg is received.
+        rclcpp::Time rcv_WT; // The system time when the msg is received.
     } quad_state_data_;
 
-    void QuadStateCallback_(const ros::TimerEvent &e) {
+    void QuadStateCallback_() {
         if (!quad_state_data_.rcv_new_msg) {
             return;
         }
@@ -238,7 +242,7 @@ private:
         quad_state_data_.processing_msg = quad_state_data_.latest_msg;
         quad_state_data_.update_lock_.unlock();
         //////////////WRITE THE PROCESS CODE BELOW/////////////////
-        swarm_msgs::QuadStatePub quadstate_msg;
+        swarm_msgs::msg::QuadStatePub quadstate_msg;
         quadstate_msg.teammate.clear();
         quadstate_msg.drone_id = quad_state_data_.processing_msg.data.drone_id;
         int rcv_id = quad_state_data_.processing_msg.data.drone_id;
@@ -251,9 +255,13 @@ private:
             double dt_ns = iter->second.offset_time_ * 1e9; //nanoseconds
             if (cnt[rcv_id] % 30 == 0)
                 cout << "Fuse msg from UAV" << int(rcv_id) << ", offset time: " << dt_ns / 1e6 << " ms" << endl;
-            quadstate_msg.header.stamp.fromNSec(quad_state_data_.processing_msg.data.header.sec * 1e9 +
-                                                quad_state_data_.processing_msg.data.header.nsec - dt_ns);
-            double delay_time = (ros::Time::now().toSec() - quadstate_msg.header.stamp.toSec()) * 1000;
+            {
+                int64_t ns = (int64_t)quad_state_data_.processing_msg.data.header.sec * 1000000000ll +
+                             (int64_t)quad_state_data_.processing_msg.data.header.nsec - (int64_t)dt_ns;
+                quadstate_msg.header.stamp.sec = (int32_t)(ns / 1000000000ll);
+                quadstate_msg.header.stamp.nanosec = (uint32_t)(ns % 1000000000ll);
+            }
+            double delay_time = (now().seconds() - (quadstate_msg.header.stamp.sec + quadstate_msg.header.stamp.nanosec * 1e-9)) * 1000.0;
             fout_delay << "teammate_id: " << int(rcv_id) << ", delay: " << delay_time << " ms" << endl;
             quadstate_msg.header.frame_id = "world";
             quadstate_msg.child_frame_id = "odom";
@@ -279,7 +287,7 @@ private:
 
             for (int i = 0; i < MAX_UAV_NUM; i++) {
                 if (quad_state_data_.processing_msg.data.teammate[i].is_observe) {
-                    swarm_msgs::ObserveTeammate obs_teammate;
+                    swarm_msgs::msg::ObserveTeammate obs_teammate;
                     obs_teammate.is_observe = true;
                     //drone id of observed teammate
                     obs_teammate.teammate_id = quad_state_data_.processing_msg.data.teammate[i].teammate_id;
@@ -290,21 +298,21 @@ private:
                     quadstate_msg.teammate.push_back(obs_teammate);
                 }
             }
-            QuadState_pub_.publish(quadstate_msg);
+            QuadState_pub_->publish(quadstate_msg);
         }
         quad_state_data_.rcv_new_msg = false;
     }
 
 ///////////////////// Global Extrinsic MSG //////////////////////////////
     struct GlobalExtrinsicStatusData {
-        ros::Timer process_timer;
+        rclcpp::TimerBase::SharedPtr process_timer;
         bool rcv_new_msg{false};
         mutex update_lock_;
         GlobalExtrinsicStatusCvt latest_msg, processing_msg;
-        ros::Time rcv_WT; // The system time when the msg is received.
+        rclcpp::Time rcv_WT; // The system time when the msg is received.
     } global_extrinsic_data_;
 
-    void GlobalExtrinsicCallback_(const ros::TimerEvent &e) {
+    void GlobalExtrinsicCallback_() {
         if (!global_extrinsic_data_.rcv_new_msg) {
             return;
         }
@@ -312,19 +320,22 @@ private:
         global_extrinsic_data_.processing_msg = global_extrinsic_data_.latest_msg;
         global_extrinsic_data_.update_lock_.unlock();
         //////////////WRITE THE PROCESS CODE BELOW/////////////////
-        swarm_msgs::GlobalExtrinsicStatus global_extrinsic_status_msg;
+        swarm_msgs::msg::GlobalExtrinsicStatus global_extrinsic_status_msg;
         global_extrinsic_status_msg.extrinsic.clear();
         global_extrinsic_status_msg.drone_id = global_extrinsic_data_.processing_msg.data.drone_id;
         int rcv_id = global_extrinsic_status_msg.drone_id;
         auto iter = teammates.find(rcv_id);
         if (iter != teammates.end() && iter->second.sync_done_) {
             double dt_ns = iter->second.offset_time_ * 1e9; //nanoseconds
-            global_extrinsic_status_msg.header.stamp.fromNSec(
-                    global_extrinsic_data_.processing_msg.data.header.sec * 1e9 +
-                    global_extrinsic_data_.processing_msg.data.header.nsec - dt_ns);
+            {
+                int64_t ns = (int64_t)global_extrinsic_data_.processing_msg.data.header.sec * 1000000000ll +
+                             (int64_t)global_extrinsic_data_.processing_msg.data.header.nsec - (int64_t)dt_ns;
+                global_extrinsic_status_msg.header.stamp.sec = (int32_t)(ns / 1000000000ll);
+                global_extrinsic_status_msg.header.stamp.nanosec = (uint32_t)(ns % 1000000000ll);
+            }
             global_extrinsic_status_msg.header.frame_id = "world";
             for (int i = 0; i < MAX_UAV_NUM; i++) {
-                swarm_msgs::GlobalExtrinsic global_extrinsic;
+                swarm_msgs::msg::GlobalExtrinsic global_extrinsic;
                 global_extrinsic.teammate_id = global_extrinsic_data_.processing_msg.data.extrinsic[i].teammate_id;
                 if (int(global_extrinsic.teammate_id) > MAX_UAV_NUM)
                     continue;
@@ -336,20 +347,20 @@ private:
                 }
                 global_extrinsic_status_msg.extrinsic.push_back(global_extrinsic);
             }
-            GlobalExtrinsic_pub_.publish(global_extrinsic_status_msg);
+            GlobalExtrinsic_pub_->publish(global_extrinsic_status_msg);
         }
 
         global_extrinsic_data_.rcv_new_msg = false;
     }
 
     struct GCSCmdMsgData {
-        ros::Timer process_timer;
+        rclcpp::TimerBase::SharedPtr process_timer;
         bool rcv_new_msg{false};
         mutex update_lock_;
         GCSCmdMsgCvt latest_msg, processing_msg;
-        ros::Time rcv_WT; // The system time when the msg is received.
+        rclcpp::Time rcv_WT; // The system time when the msg is received.
     } GCSCmdMsg_data_;
-    void GCSCmdMsgCallback(const ros::TimerEvent &e){
+    void GCSCmdMsgCallback(){
         if (!GCSCmdMsg_data_.rcv_new_msg) {
             return;
         }
@@ -424,68 +435,92 @@ private:
 //    }
 
     void initDataCallback() {
-        ip_id_data_.process_timer = nh_.createTimer(ros::Duration(0.001), &UdpBridge::IpIdMsgCallback_, this);
-        time_sync_data_.process_timer = nh_.createTimer(ros::Duration(0.001), &UdpBridge::TimeSyncCallback_, this);
-        quad_state_data_.process_timer = nh_.createTimer(ros::Duration(0.001), &UdpBridge::QuadStateCallback_, this);
-        global_extrinsic_data_.process_timer = nh_.createTimer(ros::Duration(0.001), &UdpBridge::GlobalExtrinsicCallback_, this);
-        GCSCmdMsg_data_.process_timer =  nh_.createTimer(ros::Duration(0.001), &UdpBridge::GCSCmdMsgCallback, this);
-        //        debug_data_.process_timer = nh_.createTimer(ros::Duration(0.001), &UdpBridge::DebugCallback, this);
+        using namespace std::chrono_literals;
+        ip_id_data_.process_timer = this->create_wall_timer(1ms, std::bind(&UdpBridge::IpIdMsgCallback_, this));
+        time_sync_data_.process_timer = this->create_wall_timer(1ms, std::bind(&UdpBridge::TimeSyncCallback_, this));
+        quad_state_data_.process_timer = this->create_wall_timer(1ms, std::bind(&UdpBridge::QuadStateCallback_, this));
+        global_extrinsic_data_.process_timer = this->create_wall_timer(1ms, std::bind(&UdpBridge::GlobalExtrinsicCallback_, this));
+        GCSCmdMsg_data_.process_timer = this->create_wall_timer(1ms, std::bind(&UdpBridge::GCSCmdMsgCallback, this));
+        // debug timer omitted
     }
 
 public:
 
-    UdpBridge(ros::NodeHandle &nh) {
-        nh_ = nh;
+    UdpBridge() : rclcpp::Node("udp_soft_time_sync") {
+        RCLCPP_INFO(this->get_logger(), "UdpBridge ctor: start");
         //Acquire LOCAL IP
         char ip[16];
         memset(ip, 0, sizeof(ip));
-        get_local_ip(ip);
+        if (get_local_ip(ip) != 0) {
+            RCLCPP_WARN(this->get_logger(), "get_local_ip failed, defaulting to 127.0.0.1");
+            strncpy(ip, "127.0.0.1", sizeof(ip)-1);
+        }
         local_ip = ip;
+        RCLCPP_INFO(this->get_logger(), "Local IP: %s", local_ip.c_str());
 
         //Set DRONE ID
-        uint8_t *ip_c = new uint8_t[4];
+        uint8_t ip_c[4] = {0};
         StringIp2CharIp(local_ip, ip_c);
         local_id = ip_c[3] - 100;
 
         //Set Broadcast IP
-        ip_c[3] = 255;
-        CharIp2StringIp(ip_c, broadcast_ip);
+        {
+            uint8_t bcast[4] = {ip_c[0], ip_c[1], ip_c[2], 255};
+            CharIp2StringIp(bcast, broadcast_ip);
+        }
 
         print(fg(color::lime_green), " -- [BROAD IP]: {}\n", broadcast_ip);
         print(fg(color::lime_green), " -- [LOCAL IP]: {}\n", local_ip);
         print(fg(color::lime_green), " -- [DRONE ID]: {}\n", local_id);
+        RCLCPP_INFO(this->get_logger(), "Broadcast IP: %s, Drone ID: %d", broadcast_ip.c_str(), local_id);
 
         // write to log and shutdown
-        offset_path = ros::package::getPath("udp_bridge");
-        offset_path += "../../../../config";
+        try {
+            auto share_dir = ament_index_cpp::get_package_share_directory("udp_bridge");
+            offset_path = share_dir + "/config";
+        } catch (const std::exception &e) {
+            RCLCPP_WARN(this->get_logger(), "get_package_share_directory failed: %s. Fallback to ROOT_DIR/config", e.what());
+            offset_path = string(ROOT_DIR) + string("config");
+        }
+        RCLCPP_INFO(this->get_logger(), "Creating config/log dir: %s", offset_path.c_str());
         boost::filesystem::create_directories(offset_path);
         offset_path += "/teammate_" + GetSystemTime() + ".txt";
         save_offset.open(offset_path, ios::out);
+        RCLCPP_INFO(this->get_logger(), "Offset file: %s", offset_path.c_str());
 
         teammate_id_by_traj_matching.clear();
 
         //Init fd for sending IP and drone ID
         udp_send_ip_fd_ptr_ = InitUdpBoardcast(UDP_PORT);
+        RCLCPP_INFO(this->get_logger(), "InitUdpBoardcast done, fd=%d", udp_send_ip_fd_ptr_);
         udp_callback_thread_ = new boost::thread(boost::bind(&UdpBridge::UdpCallback, this));
-        broadcast_timer_ = nh_.createTimer(ros::Duration(1), &UdpBridge::BroadcastCallback, this);
-        sync_timer_ = nh_.createTimer(ros::Duration(0.1), &UdpBridge::SyncRequestCallback, this);
-        drone_state_timer_ = nh_.createTimer(ros::Duration(0.2), &UdpBridge::DroneStateTimerCallback, this);
-//        debug_timer_ = nh_.createTimer(ros::Duration(0.001), &UdpBridge::DebugProcessCallback, this);
+        RCLCPP_INFO(this->get_logger(), "Spawned UdpCallback thread");
+        using namespace std::chrono_literals;
+        broadcast_timer_ = this->create_wall_timer(1000ms, std::bind(&UdpBridge::BroadcastCallback, this));
+        sync_timer_ = this->create_wall_timer(100ms, std::bind(&UdpBridge::SyncRequestCallback, this));
+        drone_state_timer_ = this->create_wall_timer(200ms, std::bind(&UdpBridge::DroneStateTimerCallback, this));
+        RCLCPP_INFO(this->get_logger(), "Timers created");
 
-        team_status_pub_ = nh_.advertise<swarm_msgs::TeamStatus>("/team_status", 1000);
-        QuadState_pub_ = nh_.advertise<swarm_msgs::QuadStatePub>("/quadstate_from_teammate", 1000);
-        QuadState_sub_ = nh_.subscribe("/quadstate_to_teammate", 1000, &UdpBridge::QuadStateCallback, this);
-        GlobalExtrinsic_pub_ = nh_.advertise<swarm_msgs::GlobalExtrinsicStatus>("/global_extrinsic_from_teammate",1000);
-        GlobalExtrinsic_sub_ = nh_.subscribe("/global_extrinsic_to_teammate", 1000, &UdpBridge::GlobalExtrinsicCallback,this);
-        TeammateListTraj_sub_ = nh_.subscribe("/teammate_id_with_traj_matching", 1000, &UdpBridge::TeammateListTrajCallback, this);
-        ST_OffsetStatus_pub_ = nh_.advertise<swarm_msgs::SpatialTemporalOffsetStatus>("/spatial_temporal_offset", 1000);
-        Battery_sub_ = nh_.subscribe("/mavros/battery", 1000 , &UdpBridge::BatteryStatusCallback, this);
-        DroneState_sub_ = nh_.subscribe("/mpc/drone_state", 1000, &UdpBridge::DroneStateCallback, this);
+        team_status_pub_ = this->create_publisher<swarm_msgs::msg::TeamStatus>("/team_status", 10);
+        QuadState_pub_ = this->create_publisher<swarm_msgs::msg::QuadStatePub>("/quadstate_from_teammate", 10);
+        GlobalExtrinsic_pub_ = this->create_publisher<swarm_msgs::msg::GlobalExtrinsicStatus>("/global_extrinsic_from_teammate", 10);
+        ST_OffsetStatus_pub_ = this->create_publisher<swarm_msgs::msg::SpatialTemporalOffsetStatus>("/spatial_temporal_offset", 10);
+        QuadState_sub_ = this->create_subscription<swarm_msgs::msg::QuadStatePub>(
+            "/quadstate_to_teammate", 10, std::bind(&UdpBridge::QuadStateCallback, this, std::placeholders::_1));
+        GlobalExtrinsic_sub_ = this->create_subscription<swarm_msgs::msg::GlobalExtrinsicStatus>(
+            "/global_extrinsic_to_teammate", 10, std::bind(&UdpBridge::GlobalExtrinsicCallback, this, std::placeholders::_1));
+        TeammateListTraj_sub_ = this->create_subscription<swarm_msgs::msg::ConnectedTeammateList>(
+            "/teammate_id_with_traj_matching", 10, std::bind(&UdpBridge::TeammateListTrajCallback, this, std::placeholders::_1));
+        Battery_sub_ = this->create_subscription<sensor_msgs::msg::BatteryState>(
+            "/mavros/battery", 10, std::bind(&UdpBridge::BatteryStatusCallback, this, std::placeholders::_1));
+        DroneState_sub_ = this->create_subscription<std_msgs::msg::Int8>(
+            "/mpc/drone_state", 10, std::bind(&UdpBridge::DroneStateCallback, this, std::placeholders::_1));
         log_writer_.open(DEBUG_FILE_DIR("udp_debug.txt"), ios::out);
         fout_delay.open(DEBUG_FILE_DIR("udp_delay.txt"), ios::out);
         initDataCallback();
-        udp_start_time_ = ros::Time::now();
-        ros::Duration(0.1).sleep();
+        udp_start_time_ = now();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        RCLCPP_INFO(this->get_logger(), "UdpBridge ctor: done");
     }
 
     ~UdpBridge() {
@@ -494,7 +529,7 @@ public:
         fout_delay.close();
     }
 
-    void BroadcastCallback(const ros::TimerEvent &e) {
+    void BroadcastCallback() {
         //Write team status into .txt
         if (exit_process) {
             //Write down the time offset
@@ -513,19 +548,19 @@ public:
                 }
             }
             save_offset.close();
-            ros::shutdown();
+            rclcpp::shutdown();
         }
         //Broadcast local Ip and Id
         SendLocalIp();
 
         //Publish team bimap
-        swarm_msgs::TeamStatus team_msg;
+        swarm_msgs::msg::TeamStatus team_msg;
         team_msg.my_drone_id = local_id;
         for (auto it = teammates.begin(); it != teammates.end(); it++) {
-            swarm_msgs::TeammateInfo teammate_info_msg;
+            swarm_msgs::msg::TeammateInfo teammate_info_msg;
             teammate_info_msg.is_connect = false;
             auto &drone = it->second;
-            double cur_time = ros::Time::now().toSec();
+            double cur_time = now().seconds();
             if (drone.is_connect(cur_time))
                 teammate_info_msg.is_connect = true;
             teammate_info_msg.id = drone.id_;
@@ -538,10 +573,10 @@ public:
             }
             team_msg.teammate_info.push_back(teammate_info_msg);
         }
-        team_status_pub_.publish(team_msg);
+        team_status_pub_->publish(team_msg);
     }
 
-    void SyncRequestCallback(const ros::TimerEvent &e) {
+    void SyncRequestCallback() {
         //map的遍历
         for (auto it = teammates.begin(); it != teammates.end(); it++) {
             auto &drone = it->second;
@@ -549,7 +584,7 @@ public:
                 if (!drone.offset_ts_.empty())
                     print(" -- [Sync to] UAV{} {}/30.\n", drone.id_, drone.offset_ts_.size());
                 CallSyncRequest(drone);
-                ros::Duration(0.01).sleep();
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
     }
@@ -557,21 +592,29 @@ public:
     void UdpCallback() {
         int valread;
         struct sockaddr_in addr_client;
-        socklen_t addr_len;
+        socklen_t addr_len = sizeof(addr_client);
+        RCLCPP_INFO(this->get_logger(), "UdpCallback thread: starting");
 
         // Connect
         if (BindToUdpPort(UDP_PORT, udp_server_fd_) < 0) {
-            ROS_ERROR("[bridge_node]Socket receiver creation error!");
+            RCLCPP_ERROR(get_logger(), "[bridge_node]Socket receiver creation error!");
             exit(EXIT_FAILURE);
         }
+        RCLCPP_INFO(this->get_logger(), "UDP bind OK on port %d, server_fd=%d", UDP_PORT, udp_server_fd_);
 
         while (true) {
+            addr_len = sizeof(addr_client);
             if ((valread = recvfrom(udp_server_fd_, udp_recv_buf_, BUFFER_SIZE, 0, (struct sockaddr *) &addr_client,
                                     (socklen_t *) &addr_len)) < 0) {
                 perror("recvfrom() < 0, error:");
                 exit(EXIT_FAILURE);
             }
-            ros::Time t2 = ros::Time::now();
+            // Minimal heartbeat log every N packets
+            static int recv_cnt = 0;
+            if ((++recv_cnt % 1000) == 0) {
+                RCLCPP_DEBUG(this->get_logger(), "recvfrom ok, bytes=%d", valread);
+            }
+            rclcpp::Time t2 = now();
             // 收到所有的消息，如果分离出来不是用于时间同步的，就直接continue掉
             char *ptr = udp_recv_buf_;
             switch (*((MESSAGE_TYPE *) ptr)) {
@@ -644,7 +687,7 @@ public:
         }
     }
 
-    void DebugProcessCallback(ros::TimerEvent const &event) {
+    void DebugProcessCallback() {
         for (auto it = teammates.begin(); it != teammates.end(); it++) {
             auto &drone = it->second;
             if (drone.sync_done_) {
@@ -655,15 +698,15 @@ public:
                 for (int i = 0; i < 100; i++) {
                     cvt.data.payload[i] = i;
                 }
-                ros::Time t1 = ros::Time::now();
+                rclcpp::Time t1 = now();
                 int len = sizeof(cvt.binary) + 2 * sizeof(uint32_t);
-                char send_buf[len * 5];
-                cvt.data.header.sec = t1.sec;
-                cvt.data.header.nsec = t1.nsec;
-                EncodeMsgToBuffer(MESSAGE_TYPE::DEBUG, cvt, send_buf);
-                if (sendto(drone.udp_send_fd_ptr_, send_buf, len, 0, (struct sockaddr *) &(drone.addr_udp_send_),
+                std::vector<char> send_buf(len * 5);
+                cvt.data.header.sec = (int32_t)(t1.nanoseconds() / 1000000000ll);
+                cvt.data.header.nsec = (uint32_t)(t1.nanoseconds() % 1000000000ll);
+                EncodeMsgToBuffer(MESSAGE_TYPE::DEBUG, cvt, send_buf.data());
+                if (sendto(drone.udp_send_fd_ptr_, send_buf.data(), len, 0, (struct sockaddr *) &(drone.addr_udp_send_),
                            sizeof(drone.addr_udp_send_)) <= 0) {
-                    ROS_ERROR("UDP SEND ERROR!!!");
+                    RCLCPP_ERROR(get_logger(), "UDP SEND ERROR!!!");
                     printf("errno is: %d\n", errno);
                 }
             }
@@ -675,15 +718,15 @@ private:
         TimeSyncMsgCvt cvt;
         cvt.data.client_id = local_id;
         cvt.data.server_id = drone.id_;
-        ros::Time t1 = ros::Time::now();
+        rclcpp::Time t1 = now();
         int len = sizeof(cvt.binary) + 2 * sizeof(uint32_t);
-        char send_buf[len * 5];
-        cvt.data.t1.sec = t1.sec;
-        cvt.data.t1.nsec = t1.nsec;
-        EncodeMsgToBuffer(MESSAGE_TYPE::TIME_SYNC, cvt, send_buf);
-        if (sendto(drone.udp_send_fd_ptr_, send_buf, len, 0, (struct sockaddr *) &(drone.addr_udp_send_),
+        std::vector<char> send_buf(len * 5);
+        cvt.data.t1.sec = (int32_t)(t1.nanoseconds() / 1000000000ll);
+        cvt.data.t1.nsec = (uint32_t)(t1.nanoseconds() % 1000000000ll);
+        EncodeMsgToBuffer(MESSAGE_TYPE::TIME_SYNC, cvt, send_buf.data());
+        if (sendto(drone.udp_send_fd_ptr_, send_buf.data(), len, 0, (struct sockaddr *) &(drone.addr_udp_send_),
                    sizeof(drone.addr_udp_send_)) <= 0) {
-            ROS_ERROR("UDP SEND ERROR!!!");
+            RCLCPP_ERROR(get_logger(), "UDP SEND ERROR!!!");
             printf("errno is: %d\n", errno);
         }
 //        print("Call a sync request to Drone {}\n", drone.id_);
@@ -693,14 +736,14 @@ private:
         IpIdMsgCvt cvt;
         StringIp2CharIp(local_ip, cvt.data.local_ip);
         cvt.data.local_id = local_id;
-        cvt.data.udp_start_time.sec = udp_start_time_.sec;
-        cvt.data.udp_start_time.nsec = udp_start_time_.nsec;
+        cvt.data.udp_start_time.sec = (int32_t)(udp_start_time_.nanoseconds() / 1000000000ll);
+        cvt.data.udp_start_time.nsec = (uint32_t)(udp_start_time_.nanoseconds() % 1000000000ll);
         int len = sizeof(cvt.binary) + 2 * sizeof(uint32_t);
-        char send_buf[len * 5];
-        EncodeMsgToBuffer(MESSAGE_TYPE::IP_ID, cvt, send_buf);
-        if (sendto(udp_send_ip_fd_ptr_, send_buf, len, 0, (struct sockaddr *) &addr_udp_send_ip_,
+        std::vector<char> send_buf(len * 5);
+        EncodeMsgToBuffer(MESSAGE_TYPE::IP_ID, cvt, send_buf.data());
+        if (sendto(udp_send_ip_fd_ptr_, send_buf.data(), len, 0, (struct sockaddr *) &addr_udp_send_ip_,
                    sizeof(addr_udp_send_ip_)) <= 0) {
-            ROS_ERROR("UDP BROADCAST ERROR !!!");
+            RCLCPP_ERROR(get_logger(), "UDP BROADCAST ERROR !!!");
         }
 //     print("Broadcast local Ip and Id.\n");
     }
@@ -741,7 +784,7 @@ private:
         int fd;
 
         if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) <= 0) {
-            ROS_ERROR("[udo_bridge] Socket sender creation error!");
+            RCLCPP_ERROR(get_logger(), "[udo_bridge] Socket sender creation error!");
             exit(EXIT_FAILURE);
         }
 
@@ -760,7 +803,7 @@ private:
         int fd;
 
         if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) <= 0) {
-            ROS_ERROR("[udp_bridge] Socket sender creation error!");
+            RCLCPP_ERROR(get_logger(), "[udp_bridge] Socket sender creation error!");
             exit(EXIT_FAILURE);
         }
 
@@ -811,11 +854,11 @@ private:
         return server_fd;
     }
 
-    void TeammateListTrajCallback(const swarm_msgs::ConnectedTeammateList::ConstPtr &msg){
+    void TeammateListTrajCallback(const swarm_msgs::msg::ConnectedTeammateList::SharedPtr msg){
         if(teammate_id_by_traj_matching.size() != msg->connected_teammate_id.size()){
             traj_buffer_mtx.lock();
             teammate_id_by_traj_matching.clear();
-            for(int i = 0; i < msg->connected_teammate_id.size(); i++){
+            for(size_t i = 0; i < msg->connected_teammate_id.size(); i++){
                 teammate_id_by_traj_matching.push_back(msg->connected_teammate_id[i]);
             }
             traj_buffer_mtx.unlock();
@@ -823,18 +866,18 @@ private:
     }
 
 
-    void GlobalExtrinsicCallback(const swarm_msgs::GlobalExtrinsicStatus::ConstPtr &msg) {
+    void GlobalExtrinsicCallback(const swarm_msgs::msg::GlobalExtrinsicStatus::SharedPtr msg) {
         GlobalExtrinsicStatusCvt cvt;
         cvt.data.header.sec = msg->header.stamp.sec;
-        cvt.data.header.nsec = msg->header.stamp.nsec;
+        cvt.data.header.nsec = msg->header.stamp.nanosec;
         cvt.data.drone_id = msg->drone_id;
         //Reset global extrinsic
-        for (int i = 0; i < teammate_id_by_traj_matching.size(); i++) {
+        for (size_t i = 0; i < teammate_id_by_traj_matching.size(); i++) {
             cvt.data.extrinsic[i].teammate_id = 255;
         }
         //Global Extrinsic
         int id_counter = 0;
-        for (int i = 0; i < msg->extrinsic.size(); i++) {
+        for (size_t i = 0; i < msg->extrinsic.size(); i++) {
             traj_buffer_mtx.lock();
             auto iter = find(teammate_id_by_traj_matching.begin(), teammate_id_by_traj_matching.end(), msg->extrinsic[i].teammate_id);
             if(iter == teammate_id_by_traj_matching.end()){
@@ -850,22 +893,22 @@ private:
             id_counter++;
         }
         int len = sizeof(cvt.binary) + 2 * sizeof(uint32_t);
-        char send_buf[len * 5];
-        EncodeMsgToBuffer(MESSAGE_TYPE::GLOBAL_EXTRINSIC, cvt, send_buf);
+        std::vector<char> send_buf(len * 5);
+        EncodeMsgToBuffer(MESSAGE_TYPE::GLOBAL_EXTRINSIC, cvt, send_buf.data());
         static int cnt[MAX_UAV_NUM] = {0};
         for (auto iter = teammates.begin(); iter != teammates.end(); iter++) {
             auto &drone = iter->second;
             cnt[drone.id_]++;
-            if (sendto(drone.udp_send_fd_ptr_, send_buf, len, 0,
+            if (sendto(drone.udp_send_fd_ptr_, send_buf.data(), len, 0,
                        (struct sockaddr *) &drone.addr_udp_send_, sizeof(drone.addr_udp_send_)) <= 0) {
-                ROS_ERROR("Global Extrinsic SEND ERROR !!!");
+                RCLCPP_ERROR(get_logger(), "Global Extrinsic SEND ERROR !!!");
             } else if (cnt[drone.id_] % 10 == 0)
                 cout << "UAV" << int(msg->drone_id) << " Send Global Extrinsic to UAV" << drone.id_ << endl;
         }
 
 
         //Publish Spatial Temporal Offset Status
-        swarm_msgs::SpatialTemporalOffsetStatus st_offset_status;
+        swarm_msgs::msg::SpatialTemporalOffsetStatus st_offset_status;
         st_offset_status.st_offset.clear();
         st_offset_status.header.stamp = msg->header.stamp;
         st_offset_status.drone_id = msg->drone_id;
@@ -876,8 +919,8 @@ private:
         Matrix4d world_to_gravity_i = Matrix4d::Identity();
         world_to_gravity_i.block<3, 3>(0, 0) = EulerToRotM(world_to_gravity_rad);
 
-        for (int i = 0; i < msg->extrinsic.size(); i++) {
-            swarm_msgs::SpatialTemporalOffset st_offset;
+        for (size_t i = 0; i < msg->extrinsic.size(); i++) {
+            swarm_msgs::msg::SpatialTemporalOffset st_offset;
             st_offset.teammate_id = msg->extrinsic[i].teammate_id;
 
             //Global extrinsic --> Gravity frame extrinsic
@@ -919,13 +962,13 @@ private:
                 st_offset_status.st_offset.push_back(st_offset);
             }
         }
-        ST_OffsetStatus_pub_.publish(st_offset_status);
+        ST_OffsetStatus_pub_->publish(st_offset_status);
     }
 
-    void QuadStateCallback(const swarm_msgs::QuadStatePub::ConstPtr &msg) {
+    void QuadStateCallback(const swarm_msgs::msg::QuadStatePub::SharedPtr msg) {
         QuadStateCvt cvt;
         cvt.data.header.sec = msg->header.stamp.sec;
-        cvt.data.header.nsec = msg->header.stamp.nsec;
+        cvt.data.header.nsec = msg->header.stamp.nanosec;
         cvt.data.drone_id = msg->drone_id;
         cvt.data.quat_w = msg->pose.pose.orientation.w;
         cvt.data.quat_x = msg->pose.pose.orientation.x;
@@ -950,7 +993,7 @@ private:
             cvt.data.teammate[i].is_observe = false;
         }
 
-        for (int i = 0; i < msg->teammate.size(); i++) {
+        for (size_t i = 0; i < msg->teammate.size(); i++) {
             cvt.data.teammate[i].is_observe = msg->teammate[i].is_observe;
             cvt.data.teammate[i].teammate_id = msg->teammate[i].teammate_id;
             for (int j = 0; j < 3; j++) {
@@ -958,22 +1001,22 @@ private:
             }
         }
         int len = sizeof(cvt.binary) + 2 * sizeof(uint32_t);
-        char send_buf[len * 5];
-        EncodeMsgToBuffer(MESSAGE_TYPE::QUAD_STATE, cvt, send_buf);
+        std::vector<char> send_buf(len * 5);
+        EncodeMsgToBuffer(MESSAGE_TYPE::QUAD_STATE, cvt, send_buf.data());
         static int cnt[MAX_UAV_NUM] = {0};
         //逐个单播
         for (auto iter = teammates.begin(); iter != teammates.end(); iter++) {
             auto &drone = iter->second;
             cnt[drone.id_]++;
-            if (sendto(drone.udp_send_fd_ptr_, send_buf, len, 0, (struct sockaddr *) &drone.addr_udp_send_,
+            if (sendto(drone.udp_send_fd_ptr_, send_buf.data(), len, 0, (struct sockaddr *) &drone.addr_udp_send_,
                        sizeof(drone.addr_udp_send_)) <= 0) {
-                ROS_ERROR("QUADSTATE SEND ERROR !!!");
+                RCLCPP_ERROR(get_logger(), "QUADSTATE SEND ERROR !!!");
             } else if (cnt[drone.id_] % 50 == 0)
                 cout << "UAV" << int(msg->drone_id) << ", sent quadstate to UAV" << drone.id_ << endl;
         }
     }
 
-    void BatteryStatusCallback(const sensor_msgs::BatteryStatePtr &msg){
+    void BatteryStatusCallback(const sensor_msgs::msg::BatteryState::SharedPtr msg){
         if(msg->voltage <= 20.4 || msg->voltage >= 25.2)
             return;
         float remaining = (msg->voltage - 20.4) / (25.2 - 20.4) * 100;
@@ -981,8 +1024,8 @@ private:
         cvt.data.remaining = int(remaining);
         cvt.data.drone_id = local_id;
         int len = sizeof(cvt.binary) + 2 * sizeof(uint32_t);
-        char send_buf[len * 5];
-        EncodeMsgToBuffer(MESSAGE_TYPE::BATTERY_STATUS, cvt, send_buf);
+        std::vector<char> send_buf(len * 5);
+        EncodeMsgToBuffer(MESSAGE_TYPE::BATTERY_STATUS, cvt, send_buf.data());
         static int cnt= 0;
         //发给地面站
         for (auto iter = teammates.begin(); iter != teammates.end(); iter++) {
@@ -990,9 +1033,9 @@ private:
             //only send to Ground Station
             if(drone.id_ == 0){
                 cnt++;
-                if (sendto(drone.udp_send_fd_ptr_, send_buf, len, 0, (struct sockaddr *) &drone.addr_udp_send_,
+                if (sendto(drone.udp_send_fd_ptr_, send_buf.data(), len, 0, (struct sockaddr *) &drone.addr_udp_send_,
                            sizeof(drone.addr_udp_send_)) <= 0) {
-                    ROS_ERROR("QUADSTATE SEND ERROR !!!");
+                    RCLCPP_ERROR(get_logger(), "QUADSTATE SEND ERROR !!!");
                 } else if (cnt % 20 == 0)
                     cout << "UAV" << int(local_id) << ", sent battery info to Ground Station." << endl;
                 break;
@@ -1000,13 +1043,13 @@ private:
         }
     }
 
-    void DroneStateTimerCallback(const ros::TimerEvent &e){
+    void DroneStateTimerCallback(){
         Drone_StateMsgCvt cvt;
         cvt.data.drone_id = local_id;
         cvt.data.drone_state = drone_state;
         int len = sizeof(cvt.binary) + 2 * sizeof(uint32_t);
-        char send_buf[len * 5];
-        EncodeMsgToBuffer(MESSAGE_TYPE::DRONE_STATE, cvt, send_buf);
+        std::vector<char> send_buf(len * 5);
+        EncodeMsgToBuffer(MESSAGE_TYPE::DRONE_STATE, cvt, send_buf.data());
 
         //发给地面站
         static int cnt = 0;
@@ -1014,9 +1057,9 @@ private:
             auto &drone = iter->second;
             //only send to Ground Station
             if(drone.id_ == 0){
-                if (sendto(drone.udp_send_fd_ptr_, send_buf, len, 0, (struct sockaddr *) &drone.addr_udp_send_,
+                if (sendto(drone.udp_send_fd_ptr_, send_buf.data(), len, 0, (struct sockaddr *) &drone.addr_udp_send_,
                            sizeof(drone.addr_udp_send_)) <= 0) {
-                    ROS_ERROR("QUADSTATE SEND ERROR !!!");
+                    RCLCPP_ERROR(get_logger(), "QUADSTATE SEND ERROR !!!");
                 } else if(cnt % 5 == 0){
                     cout << "UAV" << int(local_id) << ", sent drone state to Ground Station." << endl;
                     cnt++;
@@ -1026,18 +1069,18 @@ private:
         }
     }
 
-    void DroneStateCallback(const std_msgs::Int8Ptr &msg){
+    void DroneStateCallback(const std_msgs::msg::Int8::SharedPtr msg){
         drone_state = msg->data;
     }
 };
 
 int main(int argc, char **argv) {
-    ros::init(argc, argv, "udp_soft_time_sync");
-    ros::NodeHandle nh("~");
+    rclcpp::init(argc, argv);
     signal(SIGINT, SigHandle);
-    UdpBridge brg(nh);
-    ros::AsyncSpinner spinner(0);
-    spinner.start();
-    ros::waitForShutdown();
+    auto node = std::make_shared<UdpBridge>();
+    rclcpp::executors::MultiThreadedExecutor exec;
+    exec.add_node(node);
+    exec.spin();
+    rclcpp::shutdown();
     return 0;
 }

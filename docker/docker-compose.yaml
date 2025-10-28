@@ -18,7 +18,7 @@ services:
       - QT_X11_NO_MITSHM=1
       - XAUTHORITY=/tmp/.docker.xauth
       # ROS 2
-      - ROS_DOMAIN_ID=${DISPLAY:-0}
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - DEBIAN_FRONTEND=noninteractive
       # Use NVIDIA GPU for fast rviz visualization
       # - NVIDIA_VISIBLE_DEVICES=all
