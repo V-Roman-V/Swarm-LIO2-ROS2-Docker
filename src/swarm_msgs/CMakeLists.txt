@@ -1,51 +1,23 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(swarm_msgs)
 
-set(CMAKE_BUILD_TYPE "Release")
-ADD_COMPILE_OPTIONS(-std=c++11)
-ADD_COMPILE_OPTIONS(-std=c++14)
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
-find_package(Eigen3 REQUIRED)
-
-find_package(catkin REQUIRED COMPONENTS
-        roscpp
-        std_msgs
-        geometry_msgs
-        sensor_msgs
-        nav_msgs
-        message_generation
-        )
-add_message_files(
-        DIRECTORY msg
-        FILES
-        GlobalExtrinsic.msg
-        GlobalExtrinsicStatus.msg
-        QuadStatePub.msg
-        ObserveTeammate.msg
-        TeamStatus.msg
-        TeammateInfo.msg
-        SpatialTemporalOffset.msg
-        SpatialTemporalOffsetStatus.msg
-        ConnectedTeammateList.msg
-)
-generate_messages(
-        DEPENDENCIES
-        std_msgs
-        geometry_msgs
-        nav_msgs
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/ConnectedTeammateList.msg"
+  "msg/GlobalExtrinsic.msg"
+  "msg/GlobalExtrinsicStatus.msg"
+  "msg/ObserveTeammate.msg"
+  "msg/QuadStatePub.msg"
+  "msg/SpatialTemporalOffset.msg"
+  "msg/SpatialTemporalOffsetStatus.msg"
+  "msg/TeammateInfo.msg"
+  "msg/TeamStatus.msg"
+  DEPENDENCIES std_msgs geometry_msgs
 )
 
-catkin_package(
-        CATKIN_DEPENDS
-        message_runtime
-)
-
-
-include_directories(
-        ../../../devel/include
-        SYSTEM
-        ${catkin_INCLUDE_DIRS}
-        ${PROJECT_SOURCE_DIR}/include
-        ${EIGEN3_INCLUDE_DIR}
-)
+ament_export_dependencies(rosidl_default_runtime)
+ament_package()

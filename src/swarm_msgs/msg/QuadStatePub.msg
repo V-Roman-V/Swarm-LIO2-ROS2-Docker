@@ -1,6 +1,6 @@
 # QuadStatePub.msg
 
-Header header
+std_msgs/Header header
 string child_frame_id
 uint8 drone_id                        # My drone id
 geometry_msgs/PoseStamped pose        # My pose in my world frame
