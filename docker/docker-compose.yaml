@@ -1,0 +1,38 @@
+services:
+  swarm_lio2_ros2:
+    container_name: swarm_lio2_ros2
+    image: swarm-lio2-ros2
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ros2
+    volumes:
+      - ../src:/opt/swarm_lio_ws/src:rw
+      - ../bags:/opt/swarm_lio_ws/bags:ro
+      # Display
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/.docker.xauth:/tmp/.docker.xauth
+    working_dir: /opt/swarm_lio_ws
+    environment:
+      # Display
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=/tmp/.docker.xauth
+      # ROS 2
+      - ROS_DOMAIN_ID=${DISPLAY:-0}
+      - DEBIAN_FRONTEND=noninteractive
+      # Use NVIDIA GPU for fast rviz visualization
+      # - NVIDIA_VISIBLE_DEVICES=all
+      # - NVIDIA_DRIVER_CAPABILITIES=all
+      # - __NV_PRIME_RENDER_OFFLOAD=1
+      # - __GLX_VENDOR_LIBRARY_NAME=nvidia
+      # - __VK_LAYER_NV_optimus=NVIDIA_only
+    network_mode: host
+    tty: true
+    stdin_open: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    runtime: nvidia
+    command: ["/bin/bash"]
