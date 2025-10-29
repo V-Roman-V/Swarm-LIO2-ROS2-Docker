@@ -4,14 +4,15 @@
 #include <Python.h>
 #include <Eigen/Core>
 #include <Eigen/Sparse>
-#include <nav_msgs/Odometry.h>
-#include <nav_msgs/Path.h>
+#include <rclcpp/rclcpp.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <algorithm>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
-#include <tf/transform_datatypes.h>
-#include <tf/transform_broadcaster.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include "preprocess.h"
 #include <ikd-Tree/ikd_Tree.h>
 #include "MultiUAV.h"
@@ -50,7 +51,7 @@ double gyr_cov = 0.1, acc_cov = 0.1, grav_cov = 0.0001, b_gyr_cov = 0.0001, b_ac
 double last_timestamp_lidar = 0, last_timestamp_imu = 0.0;
 double filter_size_corner_min = 0, filter_size_surf_min = 0, filter_size_map_min = 0;
 double cube_len = 0, total_distance = 0, lidar_end_time = 0, first_lidar_time = - 1.0;
-ros::Publisher pubDrone;
+rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pubDrone;
 
 // Time Log Variables
 double ave_pre_processing_time = 0.0, ave_frame_time = 0.0;
@@ -95,8 +96,8 @@ bool new_imu{false}, state_update_flg{false}, imu_prop_enable{true}, ekf_finish_
 deque<sensor_msgs::Imu> prop_imu_buffer;
 sensor_msgs::Imu newest_imu;
 double latest_ekf_time;
-nav_msgs::Odometry imu_prop_odom;
-ros::Publisher pubImuPropOdom;
+nav_msgs::msg::Odometry imu_prop_odom;
+rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubImuPropOdom;
 string imu_prop_topic;
 
 PointCloudXYZI::Ptr pcl_wait_save(new PointCloudXYZI());
@@ -200,7 +201,11 @@ void prop_imu_once(StatesGroup & imu_prop_state,
     imu_prop_state.vel_end = imu_prop_state.vel_end + acc_imu * dt;
 }
 
-void VisualizeDrone(ros::Publisher &pub) {
+static inline builtin_interfaces::msg::Time stamp_from_sec(double sec) {
+    return rclcpp::Time{static_cast<int64_t>(sec * 1e9)}.to_msg();
+}
+
+void VisualizeDrone(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub) {
     Quaterniond quat;
     V3D cluster_pos_world;
     if(lidar_type == SIM){
@@ -215,8 +220,8 @@ void VisualizeDrone(ros::Publisher &pub) {
                                 imu_prop_odom.pose.pose.position.z);
     }
     V3D text_pos_world =  G_T_I0.block<3,3>(0,0) * (state.rot_end * V3D(0.4, 0.0, 0.3) + state.pos_end);
-    visualization_msgs::Marker vis_drone;
-    vis_drone.header.stamp = ros::Time().fromSec(lidar_end_time);
+    visualization_msgs::msg::Marker vis_drone;
+    vis_drone.header.stamp = stamp_from_sec(lidar_end_time);
     vis_drone.header.frame_id = topic_name_prefix + "world";
     vis_drone.action = visualization_msgs::Marker::ADD;
     vis_drone.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
@@ -237,12 +242,12 @@ void VisualizeDrone(ros::Publisher &pub) {
     vis_drone.pose.orientation.w = 1.0;
 
     vis_drone.text = "UAV" + SetString(drone_id);
-    pub.publish(vis_drone);
+    pub->publish(vis_drone);
 
-    visualization_msgs::Marker meshROS;
+    visualization_msgs::msg::Marker meshROS;
     // Mesh model
     meshROS.header.frame_id = topic_name_prefix + "world";
-    meshROS.header.stamp = ros::Time().fromSec(lidar_end_time);
+    meshROS.header.stamp = stamp_from_sec(lidar_end_time);
     meshROS.ns = "mesh";
     meshROS.id = drone_id + 100;
     meshROS.type = visualization_msgs::Marker::MESH_RESOURCE;
@@ -263,10 +268,10 @@ void VisualizeDrone(ros::Publisher &pub) {
     meshROS.color.b = 1.0;
     meshROS.mesh_resource = "package://swarm_lio/mesh/yunque-M.dae";
     meshROS.mesh_use_embedded_materials = true;
-    pub.publish(meshROS);
+    pub->publish(meshROS);
 }
 
-void imu_prop_callback(const ros::TimerEvent &e) {
+void imu_prop_callback() {
     if (p_imu->imu_need_init_ || !new_imu || !ekf_finish_once) {
         return;
     }
@@ -277,12 +282,12 @@ void imu_prop_callback(const ros::TimerEvent &e) {
         if (state_update_flg) {
             imu_propagate = latest_ekf_state;
             // drop all useless imu pkg
-            while ((!prop_imu_buffer.empty() && prop_imu_buffer.front().header.stamp.toSec() < latest_ekf_time)) {
+            while ((!prop_imu_buffer.empty() && rclcpp::Time(prop_imu_buffer.front().header.stamp).seconds() < latest_ekf_time)) {
                 prop_imu_buffer.pop_front();
             }
             last_t_from_lidar_end_time = 0;
             for (int i = 0; i < prop_imu_buffer.size(); i++) {
-                double t_from_lidar_end_time = prop_imu_buffer[i].header.stamp.toSec() - latest_ekf_time;
+                double t_from_lidar_end_time = rclcpp::Time(prop_imu_buffer[i].header.stamp).seconds() - latest_ekf_time;
                 double dt = t_from_lidar_end_time - last_t_from_lidar_end_time;
                 //cout << "prop dt" << dt << ", " << t_from_lidar_end_time << ", " << last_t_from_lidar_end_time << endl;
                 V3D acc_imu(prop_imu_buffer[i].linear_acceleration.x,
@@ -304,7 +309,7 @@ void imu_prop_callback(const ros::TimerEvent &e) {
             V3D omg_imu(newest_imu.angular_velocity.x,
                         newest_imu.angular_velocity.y,
                         newest_imu.angular_velocity.z);
-            double t_from_lidar_end_time = newest_imu.header.stamp.toSec() - latest_ekf_time;
+            double t_from_lidar_end_time = rclcpp::Time(newest_imu.header.stamp).seconds() - latest_ekf_time;
             double dt = t_from_lidar_end_time - last_t_from_lidar_end_time;
             prop_imu_once(imu_propagate, dt, acc_imu, omg_imu);
             last_t_from_lidar_end_time = t_from_lidar_end_time;
@@ -329,22 +334,21 @@ void imu_prop_callback(const ros::TimerEvent &e) {
         imu_prop_odom.twist.twist.linear.x = vel_i.x();
         imu_prop_odom.twist.twist.linear.y = vel_i.y();
         imu_prop_odom.twist.twist.linear.z = vel_i.z();
-        pubImuPropOdom.publish(imu_prop_odom);
+        pubImuPropOdom->publish(imu_prop_odom);
 
-        static tf::TransformBroadcaster br1;
-        tf::Transform transform;
-        tf::Quaternion q1;
-        transform.setOrigin(tf::Vector3(imu_prop_odom.pose.pose.position.x, \
-                                imu_prop_odom.pose.pose.position.y, \
-                                imu_prop_odom.pose.pose.position.z));
-        q1.setW(imu_prop_odom.pose.pose.orientation.w);
-        q1.setX(imu_prop_odom.pose.pose.orientation.x);
-        q1.setY(imu_prop_odom.pose.pose.orientation.y);
-        q1.setZ(imu_prop_odom.pose.pose.orientation.z);
-        transform.setRotation(q1);
-        br1.sendTransform(
-                tf::StampedTransform(transform, imu_prop_odom.header.stamp, topic_name_prefix + "world",
-                                     "quad" + SetString(drone_id) + "_imu_propagation"));
+        static tf2_ros::TransformBroadcaster br1;
+        geometry_msgs::msg::TransformStamped ts1;
+        ts1.header.stamp = rclcpp::Time(imu_prop_odom.header.stamp.toNSec());
+        ts1.header.frame_id = topic_name_prefix + "world";
+        ts1.child_frame_id = "quad" + SetString(drone_id) + "_imu_propagation";
+        ts1.transform.translation.x = imu_prop_odom.pose.pose.position.x;
+        ts1.transform.translation.y = imu_prop_odom.pose.pose.position.y;
+        ts1.transform.translation.z = imu_prop_odom.pose.pose.position.z;
+        ts1.transform.rotation.w = imu_prop_odom.pose.pose.orientation.w;
+        ts1.transform.rotation.x = imu_prop_odom.pose.pose.orientation.x;
+        ts1.transform.rotation.y = imu_prop_odom.pose.pose.orientation.y;
+        ts1.transform.rotation.z = imu_prop_odom.pose.pose.orientation.z;
+        br1.sendTransform(ts1);
     }
     mtx_buffer_imu_prop.unlock();
 }
@@ -490,15 +494,15 @@ void lasermap_fov_segment() {
     // printf("Delete Box: %d\n",int(cub_needrm.size()));
 }
 
-void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg) {
+void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
     scan_count++;
     mtx_buffer_lidar.lock();
-    if (msg->header.stamp.toSec() < last_timestamp_lidar) {
+    if (rclcpp::Time(msg->header.stamp).seconds() < last_timestamp_lidar) {
         ROS_ERROR("lidar loop back, clear Lidar buffer.");
         lidar_buffer.clear();
         time_buffer.clear();
     }
-    last_timestamp_lidar = msg->header.stamp.toSec();
+    last_timestamp_lidar = rclcpp::Time(msg->header.stamp).seconds();
 
     if ((lidar_type == VELO || lidar_type == OUSTER || lidar_type == PANDAR) && cut_frame_en) {
         deque<PointCloudXYZI::Ptr> ptr;
@@ -514,21 +518,21 @@ void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg) {
         PointCloudXYZI::Ptr ptr(new PointCloudXYZI());
         p_pre->process(msg, ptr);
         lidar_buffer.push_back(ptr);
-        time_buffer.push_back(msg->header.stamp.toSec());
+        time_buffer.push_back(rclcpp::Time(msg->header.stamp).seconds());
     }
     mtx_buffer_lidar.unlock();
     sig_buffer.notify_all();
 }
 
-ros::Publisher pubFilteredImu;
+rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr pubFilteredImu;
 V3D acc_raw[2] = {Zero3d, Zero3d};
 V3D acc_filtered = Zero3d;
 bool filter_acc_en{false};
 
-void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in) {
-    sensor_msgs::Imu::Ptr msg(new sensor_msgs::Imu(*msg_in));
-    msg->header.stamp = ros::Time().fromSec(msg_in->header.stamp.toSec() - time_offset_lidar_imu);
-    double timestamp = msg->header.stamp.toSec();
+void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr &msg_in) {
+    sensor_msgs::msg::Imu msg(*msg_in);
+    msg.header.stamp = stamp_from_sec(rclcpp::Time(msg_in->header.stamp).seconds() - time_offset_lidar_imu);
+    double timestamp = rclcpp::Time(msg.header.stamp).seconds();
 
     //Low-pass filter
     if(filter_acc_en){
@@ -537,10 +541,10 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in) {
         V3D acc_filtered_now(Zero3d);
         acc_filtered_now = 0.25 * acc_raw[0] + 0.25 * acc_raw[1] + 0.5 * acc_filtered;
         acc_filtered = acc_filtered_now;
-        msg->linear_acceleration.x = acc_filtered_now.x();
-        msg->linear_acceleration.y = acc_filtered_now.y();
-        msg->linear_acceleration.z = acc_filtered_now.z();
-        pubFilteredImu.publish(msg);
+        msg.linear_acceleration.x = acc_filtered_now.x();
+        msg.linear_acceleration.y = acc_filtered_now.y();
+        msg.linear_acceleration.z = acc_filtered_now.z();
+        pubFilteredImu->publish(msg);
     }
 
 
@@ -551,15 +555,15 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in) {
     }
 
     last_timestamp_imu = timestamp;
-    imu_buffer.push_back(msg);
+    imu_buffer.push_back(std::make_shared<sensor_msgs::msg::Imu>(msg));
     mtx_buffer_imu.unlock();
     //IMU propagation
 
     mtx_buffer_imu_prop.lock();
     if (imu_prop_enable && !p_imu->imu_need_init_) {
-        prop_imu_buffer.push_back(*msg);
+        prop_imu_buffer.push_back(msg);
     }
-    newest_imu = *msg;
+    newest_imu = msg;
     new_imu = true;
     mtx_buffer_imu_prop.unlock();
     sig_buffer.notify_all();
@@ -597,10 +601,10 @@ bool sync_packages(MeasureGroup &meas) {
 
     /** push imu data, and pop from imu buffer **/
     mtx_buffer_imu.lock();
-    double imu_time = imu_buffer.front()->header.stamp.toSec();
+    double imu_time = rclcpp::Time(imu_buffer.front()->header.stamp).seconds();
     meas.imu.clear();
     while ((!imu_buffer.empty()) && (imu_time < lidar_end_time)) {
-        imu_time = imu_buffer.front()->header.stamp.toSec();
+        imu_time = rclcpp::Time(imu_buffer.front()->header.stamp).seconds();
         if (imu_time > lidar_end_time) break;
         meas.imu.push_back(imu_buffer.front());
         imu_buffer.pop_front();
@@ -667,8 +671,8 @@ void map_incremental() {
 PointCloudXYZI::Ptr downsampled_map(new PointCloudXYZI());
 PointCloudXYZI::Ptr downsampled_before_filter(new PointCloudXYZI());
 pcl::VoxelGrid<PointType> downsample_filter_map;
-ros::Publisher pub_map;
-void publish_frame_world(const ros::Publisher &pubCloudRegistered, const ros::Publisher &pubCloudRegisteredSparse) {
+rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_map;
+void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &pubCloudRegistered, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &pubCloudRegisteredSparse) {
     if (scan_pub_en) {
         PointCloudXYZI::Ptr laserCloudFullRes(dense_pub_en ? feats_body_dense_filter_dynamic : feats_down_lidar);
         int size = laserCloudFullRes->points.size();
@@ -688,19 +692,19 @@ void publish_frame_world(const ros::Publisher &pubCloudRegistered, const ros::Pu
         pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorldSparse, lidar_to_gravity);
 
 
-        sensor_msgs::PointCloud2 laserCloudmsg;
-        sensor_msgs::PointCloud2 laserCloudSparsemsg;
+        sensor_msgs::msg::PointCloud2 laserCloudmsg;
+        sensor_msgs::msg::PointCloud2 laserCloudSparsemsg;
 
         pcl::toROSMsg(*laserCloudWorld, laserCloudmsg);
         pcl::toROSMsg(*laserCloudWorldSparse, laserCloudSparsemsg);
 
         //Publish
-        laserCloudmsg.header.stamp = laserCloudSparsemsg.header.stamp = ros::Time().fromSec(lidar_end_time);
+        laserCloudmsg.header.stamp = laserCloudSparsemsg.header.stamp = stamp_from_sec(lidar_end_time);
         laserCloudmsg.header.frame_id = laserCloudSparsemsg.header.frame_id = topic_name_prefix + "world";
-        pubCloudRegisteredSparse.publish(laserCloudSparsemsg);
+        pubCloudRegisteredSparse->publish(laserCloudSparsemsg);
 
-        if(pubCloudRegistered.getNumSubscribers() > 0)
-            pubCloudRegistered.publish(laserCloudmsg);
+        if(pubCloudRegistered->get_subscription_count() > 0)
+            pubCloudRegistered->publish(laserCloudmsg);
     }
     /**************** save map ****************/
     /* 1. make sure you have enough memories
@@ -730,17 +734,17 @@ void publish_frame_world(const ros::Publisher &pubCloudRegistered, const ros::Pu
     }
 }
 
-void publish_frame_body(const ros::Publisher &pubCloudRegisteredBody_) {
+void publish_frame_body(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &pubCloudRegisteredBody_) {
     PointCloudXYZI::Ptr laserCloudFullResBody(feats_undistort_lidar);
     Matrix4d lidar_to_body = Matrix4d::Identity();
     lidar_to_body.block<3,3>(0,0) = offset_R_L_I;
     lidar_to_body.block<3,1>(0,3) = offset_T_L_I;
     pcl::transformPointCloud(*feats_undistort_lidar, *laserCloudFullResBody, lidar_to_body);
-    sensor_msgs::PointCloud2 laserCloudmsg;
+    sensor_msgs::msg::PointCloud2 laserCloudmsg;
     pcl::toROSMsg(*laserCloudFullResBody, laserCloudmsg);
-    laserCloudmsg.header.stamp = ros::Time().fromSec(lidar_end_time);
+    laserCloudmsg.header.stamp = stamp_from_sec(lidar_end_time);
     laserCloudmsg.header.frame_id = topic_name_prefix + "world";
-    pubCloudRegisteredBody_.publish(laserCloudmsg);
+    pubCloudRegisteredBody_->publish(laserCloudmsg);
 }
 
 template<typename T>
@@ -767,56 +771,55 @@ void set_twist(T &out) {
     out.linear.z = vel(2);
 }
 
-void publish_odometry(const ros::Publisher &pubLidarSlamOdom) {
+void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr &pubLidarSlamOdom) {
     odomAftMapped.header.frame_id = topic_name_prefix + "world";
     odomAftMapped.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
 
 
-    odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time);
+    odomAftMapped.header.stamp = stamp_from_sec(lidar_end_time);
     set_posestamp(odomAftMapped.pose.pose);
     set_twist(odomAftMapped.twist.twist);
 
-    pubLidarSlamOdom.publish(odomAftMapped);
+    pubLidarSlamOdom->publish(odomAftMapped);
 
-    static tf::TransformBroadcaster br;
-    tf::Transform transform;
-    tf::Quaternion q;
-    transform.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x, \
-                                    odomAftMapped.pose.pose.position.y, \
-                                    odomAftMapped.pose.pose.position.z));
-    q.setW(odomAftMapped.pose.pose.orientation.w);
-    q.setX(odomAftMapped.pose.pose.orientation.x);
-    q.setY(odomAftMapped.pose.pose.orientation.y);
-    q.setZ(odomAftMapped.pose.pose.orientation.z);
-    transform.setRotation(q);
-    br.sendTransform(
-            tf::StampedTransform(transform, odomAftMapped.header.stamp, topic_name_prefix + "world",
-                                 "quad" + SetString(drone_id) + "_aft_mapped"));
+    static tf2_ros::TransformBroadcaster br;
+    geometry_msgs::msg::TransformStamped ts;
+    ts.header.stamp = rclcpp::Time(odomAftMapped.header.stamp.toNSec());
+    ts.header.frame_id = topic_name_prefix + "world";
+    ts.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
+    ts.transform.translation.x = odomAftMapped.pose.pose.position.x;
+    ts.transform.translation.y = odomAftMapped.pose.pose.position.y;
+    ts.transform.translation.z = odomAftMapped.pose.pose.position.z;
+    ts.transform.rotation.w = odomAftMapped.pose.pose.orientation.w;
+    ts.transform.rotation.x = odomAftMapped.pose.pose.orientation.x;
+    ts.transform.rotation.y = odomAftMapped.pose.pose.orientation.y;
+    ts.transform.rotation.z = odomAftMapped.pose.pose.orientation.z;
+    br.sendTransform(ts);
 }
 
-void publish_mavros(const ros::Publisher &mavros_pose_publisher) {
-    msg_body_pose.header.stamp = ros::Time().fromSec(lidar_end_time);
+void publish_mavros(const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr &mavros_pose_publisher) {
+    msg_body_pose.header.stamp = stamp_from_sec(lidar_end_time);
 
     msg_body_pose.header.frame_id = topic_name_prefix + "world";
     set_posestamp(msg_body_pose.pose);
-    mavros_pose_publisher.publish(msg_body_pose);
+    mavros_pose_publisher->publish(msg_body_pose);
 }
 
-void publish_path(const ros::Publisher pubPath) {
+void publish_path(const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pubPath) {
     set_posestamp(msg_body_pose.pose);
-    msg_body_pose.header.stamp = ros::Time().fromSec(lidar_end_time);
+    msg_body_pose.header.stamp = stamp_from_sec(lidar_end_time);
     msg_body_pose.header.frame_id = topic_name_prefix + "world";
 
     //for short path
     path.poses.push_back(msg_body_pose);
-    pubPath.publish(path);
+    pubPath->publish(path);
     //for long path
     static int jjj = 0;
     jjj++;
     if (jjj % 10 == 0) // if path is too large, the rvis will crash
     {
         path.poses.push_back(msg_body_pose);
-        pubPath.publish(path);
+        pubPath->publish(path);
     }
 }
 
@@ -863,9 +866,9 @@ void point_filter_teammate(const PointCloudXYZI &orig_pcl, PointCloudXYZI &pcl_o
 }
 
 
-void VisualizeRectangle(const ros::Publisher &pub_rect, const V3D &head, const V3D rect_size, const int &rect_id) {
-    visualization_msgs::Marker line_strip;
-    line_strip.header.stamp = ros::Time().fromSec(lidar_end_time);
+void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect, const V3D &head, const V3D rect_size, const int &rect_id) {
+    visualization_msgs::msg::Marker line_strip;
+    line_strip.header.stamp = stamp_from_sec(lidar_end_time);
     line_strip.header.frame_id = topic_name_prefix + "world";
     line_strip.action = visualization_msgs::Marker::ADD;
     line_strip.pose.orientation.w = 1.0;
@@ -918,11 +921,11 @@ void VisualizeRectangle(const ros::Publisher &pub_rect, const V3D &head, const V
     line_strip.points.push_back(p[0]);
     line_strip.points.push_back(p[7]);
     line_strip.points.push_back(p[4]);
-    pub_rect.publish(line_strip);
+    pub_rect->publish(line_strip);
 }
 
 void point_downsample_filt_rectangle(PointCloudXYZI &orig_pcl, PointCloudXYZI &pcl_out,
-                                     const shared_ptr<Multi_UAV> &swarm_in, const ros::Publisher &pub_rect) {
+                                     const shared_ptr<Multi_UAV> &swarm_in, const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect) {
     V3D rect_size(1.2,1.2,1.5);
     PointCloudXYZI feats_undistort_orig_copy = orig_pcl;
 
@@ -961,14 +964,14 @@ void point_downsample_filt_rectangle(PointCloudXYZI &orig_pcl, PointCloudXYZI &p
         }
     }
 
-    if(pub_rect.getNumSubscribers() < 1)
+    if(pub_rect->get_subscription_count() < 1)
         return;
 
-    visualization_msgs::Marker vis_cluster_delete;
-    vis_cluster_delete.header.stamp = ros::Time().fromSec(lidar_end_time);
+    visualization_msgs::msg::Marker vis_cluster_delete;
+    vis_cluster_delete.header.stamp = stamp_from_sec(lidar_end_time);
     vis_cluster_delete.header.frame_id = topic_name_prefix + "world";
     vis_cluster_delete.action = visualization_msgs::Marker::DELETEALL;
-    pub_rect.publish(vis_cluster_delete);
+    pub_rect->publish(vis_cluster_delete);
 
     for (int i = 0; i < swarm_in->temp_tracker.size(); ++i) {
         VisualizeRectangle(pub_rect, G_T_I0.block<3,3>(0,0) * swarm_in->temp_tracker[i].dyn_tracker.get_state_pos(),
@@ -981,9 +984,9 @@ void point_downsample_filt_rectangle(PointCloudXYZI &orig_pcl, PointCloudXYZI &p
 }
 
 
-void gt_pos_cbk_sim(const nav_msgs::Odometry::ConstPtr &msg) {
+void gt_pos_cbk_sim(const nav_msgs::msg::Odometry::ConstSharedPtr &msg) {
     VD(7) gt;
-    gt(6) = msg->header.stamp.toSec();
+    gt(6) = rclcpp::Time(msg->header.stamp).seconds();
     gt.block<3, 1>(3, 0) = V3D(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
     M3D gt_rot = Eigen::Quaterniond(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
                                     msg->pose.pose.orientation.y, msg->pose.pose.orientation.z).matrix();
@@ -991,13 +994,13 @@ void gt_pos_cbk_sim(const nav_msgs::Odometry::ConstPtr &msg) {
     ground_truth.push_back(gt);
 }
 
-void gt_pos_cbk_real(const geometry_msgs::PoseStamped::ConstPtr &msg) {
+void gt_pos_cbk_real(const geometry_msgs::msg::PoseStamped::ConstSharedPtr &msg) {
     if(msg->pose.position.x > 9990){
         sig_buffer.notify_all();
         return;
     }
     VD(7) gt;
-    gt(6) = msg->header.stamp.toSec();
+    gt(6) = rclcpp::Time(msg->header.stamp).seconds();
     gt.block<3, 1>(3, 0) = V3D(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
     M3D gt_rot = Eigen::Quaterniond(msg->pose.orientation.w, msg->pose.orientation.x,
                                     msg->pose.orientation.y, msg->pose.orientation.z).matrix();
@@ -1008,7 +1011,7 @@ void gt_pos_cbk_real(const geometry_msgs::PoseStamped::ConstPtr &msg) {
     sig_buffer.notify_all();
 }
 
-void TimerCbk(const ros::TimerEvent &e){
+void TimerCbk(){
     if(LIO_pose.empty())
         return;
     while ((ground_truth[1](6) <= LIO_pose.front()(3)) && ground_truth.size() > 2) {
@@ -1064,8 +1067,8 @@ void StringIp2CharIp(string &str_ip, uint8_t *ch_ip) {
 
 
 deque<V3D> uav_traj;
-ros::Publisher traj_pub;
-void VisualizeTrajectory(const ros::Publisher pub_, deque<V3D> &traj,
+rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr traj_pub;
+void VisualizeTrajectory(const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_, deque<V3D> &traj,
                          const V3D position,
                          const string namespace_,
                          const double mkr_size,
@@ -1073,7 +1076,7 @@ void VisualizeTrajectory(const ros::Publisher pub_, deque<V3D> &traj,
                          const V3D color
 ) {
     V3D last_pos, cur_pos;
-    visualization_msgs::MarkerArray mrkarr;
+    visualization_msgs::msg::MarkerArray mrkarr;
     mrkarr.markers.clear();
 
     traj.push_back(position);
@@ -1081,10 +1084,10 @@ void VisualizeTrajectory(const ros::Publisher pub_, deque<V3D> &traj,
     last_pos = traj[0];
     int cnt = 0;
     for (auto cur_pos: traj) {
-        visualization_msgs::Marker line_list;
+        visualization_msgs::msg::Marker line_list;
         // publish lines
         line_list.header.frame_id = topic_name_prefix + "world";
-        line_list.header.stamp = ros::Time().fromSec(timestamp);
+        line_list.header.stamp = stamp_from_sec(timestamp);
         line_list.ns = namespace_;
         line_list.id = cnt++;
         line_list.action = visualization_msgs::Marker::ADD;
@@ -1114,11 +1117,11 @@ void VisualizeTrajectory(const ros::Publisher pub_, deque<V3D> &traj,
         mrkarr.markers.push_back(line_list);
         last_pos = cur_pos;
     }
-    pub_.publish(mrkarr);
+    pub_->publish(mrkarr);
 }
 
 
-void VisualizeTrajectorySphere(const ros::Publisher pub_, deque<V3D> &traj,
+void VisualizeTrajectorySphere(const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_, deque<V3D> &traj,
                                const V3D position,
                                const string namespace_,
                                const double mkr_size,
@@ -1126,7 +1129,7 @@ void VisualizeTrajectorySphere(const ros::Publisher pub_, deque<V3D> &traj,
                                const V3D color
 ) {
     V3D last_pos, cur_pos;
-    visualization_msgs::MarkerArray mrkarr;
+    visualization_msgs::msg::MarkerArray mrkarr;
     mrkarr.markers.clear();
 
     traj.push_back(position);
@@ -1134,10 +1137,10 @@ void VisualizeTrajectorySphere(const ros::Publisher pub_, deque<V3D> &traj,
     last_pos = traj[0];
     int cnt = 0;
     for (auto cur_pos: traj) {
-        visualization_msgs::Marker line_list;
+        visualization_msgs::msg::Marker line_list;
         // publish lines
         line_list.header.frame_id = topic_name_prefix + "world";
-        line_list.header.stamp = ros::Time().fromSec(timestamp);
+        line_list.header.stamp = stamp_from_sec(timestamp);
         line_list.ns = namespace_;
         line_list.id = cnt++;
         line_list.action = visualization_msgs::Marker::ADD;
@@ -1158,23 +1161,30 @@ void VisualizeTrajectorySphere(const ros::Publisher pub_, deque<V3D> &traj,
         mrkarr.markers.push_back(line_list);
         last_pos = cur_pos;
     }
-    pub_.publish(mrkarr);
+    pub_->publish(mrkarr);
 }
 
 int main(int argc, char **argv) {
-    ros::init(argc, argv, "laserMapping");
-    ros::NodeHandle nh("~");
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("laserMapping");
     p_imu.reset(new ImuProcess());
 
 
     pcl::console::setVerbosityLevel(pcl::console::L_ALWAYS);
-    nh.param<int>("mapping/max_iteration", NUM_MAX_ITERATIONS, 4);
-    nh.param<int>("mapping/point_filter_num", point_filter_num, 2);
-    nh.param<string>("map_file_path", map_file_path, "");
-    nh.param<string>("common/lid_topic", lid_topic, "/livox/lidar");
-    nh.param<string>("common/imu_topic", imu_topic, "/livox/imu");
-    nh.param<double>("common/time_offset_lidar_imu", time_offset_lidar_imu, 0.0);
-    nh.param<int>("common/drone_id", drone_id, 0);
+    node->declare_parameter<int>("mapping/max_iteration", 4);
+    NUM_MAX_ITERATIONS = node->get_parameter("mapping/max_iteration").as_int();
+    node->declare_parameter<int>("mapping/point_filter_num", 2);
+    point_filter_num = node->get_parameter("mapping/point_filter_num").as_int();
+    node->declare_parameter<string>("map_file_path", "");
+    map_file_path = node->get_parameter("map_file_path").as_string();
+    node->declare_parameter<string>("common/lid_topic", "/livox/lidar");
+    lid_topic = node->get_parameter("common/lid_topic").as_string();
+    node->declare_parameter<string>("common/imu_topic", "/livox/imu");
+    imu_topic = node->get_parameter("common/imu_topic").as_string();
+    node->declare_parameter<double>("common/time_offset_lidar_imu", 0.0);
+    time_offset_lidar_imu = node->get_parameter("common/time_offset_lidar_imu").as_double();
+    node->declare_parameter<int>("common/drone_id", 0);
+    drone_id = node->get_parameter("common/drone_id").as_int();
     nh.param<double>("filter_size_corner", filter_size_corner_min, 0.5);
     nh.param<double>("mapping/filter_size_surf", filter_size_surf_min, 0.5);
     nh.param<double>("mapping/filter_size_map", filter_size_map_min, 0.5);

@@ -43,7 +43,7 @@ void Preprocess::set(bool feat_en, int lid_type, double bld, int pfilt_num) {
 }
 
 void
-Preprocess::process_cut_frame_pcl2(const sensor_msgs::PointCloud2::ConstPtr &msg, deque<PointCloudXYZI::Ptr> &pcl_out,
+Preprocess::process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, deque<PointCloudXYZI::Ptr> &pcl_out,
                                    deque<double> &time_lidar, const int required_frame_num, int scan_count) {
     pl_surf.clear();
     pl_full.clear();
@@ -131,7 +131,7 @@ Preprocess::process_cut_frame_pcl2(const sensor_msgs::PointCloud2::ConstPtr &msg
     sort(pl_surf.points.begin(), pl_surf.points.end(), time_list_cut_frame);
 
     //ms
-    double last_frame_end_time = msg->header.stamp.toSec() * 1000;
+    double last_frame_end_time = rclcpp::Time(msg->header.stamp).seconds() * 1000;
     uint valid_num = 0;
     uint cut_num = 0;
     uint valid_pcl_size = pl_surf.points.size();
@@ -145,7 +145,7 @@ Preprocess::process_cut_frame_pcl2(const sensor_msgs::PointCloud2::ConstPtr &msg
     PointCloudXYZI pcl_cut;
     for (uint i = 1; i < valid_pcl_size; i++) {
         valid_num++;
-        pl_surf[i].curvature += msg->header.stamp.toSec() * 1000 - last_frame_end_time;
+        pl_surf[i].curvature += rclcpp::Time(msg->header.stamp).seconds() * 1000 - last_frame_end_time;
         pcl_cut.push_back(pl_surf[i]);
 
         if (valid_num == (int((cut_num + 1) * valid_pcl_size / required_cut_num) - 1)) {
@@ -161,7 +161,7 @@ Preprocess::process_cut_frame_pcl2(const sensor_msgs::PointCloud2::ConstPtr &msg
     }
 }
 
-void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out) {
+void Preprocess::process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, PointCloudXYZI::Ptr &pcl_out) {
     switch (lidar_type) {
         case OUSTER:
             oust_handler(msg);
@@ -187,7 +187,7 @@ void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointClo
 }
 
 
-void Preprocess::l515_handler(const sensor_msgs::PointCloud2::ConstPtr &msg) {
+void Preprocess::l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
     pl_surf.clear();
     pl_full.clear();
     pcl::PointCloud<pcl::PointXYZRGB> pl_orig;
@@ -215,7 +215,7 @@ void Preprocess::l515_handler(const sensor_msgs::PointCloud2::ConstPtr &msg) {
     }
 }
 
-void Preprocess::sim_handler(const sensor_msgs::PointCloud2::ConstPtr &msg) {
+void Preprocess::sim_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
     pl_surf.clear();
     pl_full.clear();
     pcl::PointCloud<pcl::PointXYZI> pl_orig;
@@ -240,7 +240,7 @@ void Preprocess::sim_handler(const sensor_msgs::PointCloud2::ConstPtr &msg) {
     }
 }
 
-void Preprocess::oust_handler(const sensor_msgs::PointCloud2::ConstPtr &msg) {
+void Preprocess::oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
     pl_surf.clear();
     pl_corn.clear();
     pl_full.clear();

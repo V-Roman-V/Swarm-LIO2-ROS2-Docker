@@ -2,9 +2,9 @@
 #define PREPROCESS_H
 
 #include "common_lib.h"
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <pcl_conversions/pcl_conversions.h>
-#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 using namespace std;
 
@@ -112,15 +112,15 @@ class Preprocess
   int lidar_type, point_filter_num, N_SCANS;;
   double blind, DET_RANGE;
   bool feature_enabled, given_offset_time;
-  ros::Publisher pub_full, pub_surf, pub_corn;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_full, pub_surf, pub_corn;
   double original_freq;
     
 
   private:
-  void oust_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void l515_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void sim_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
+  void oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void sim_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
   int  plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, uint &i_nex, Eigen::Vector3d &curr_direct);
   bool small_plane(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct);

@@ -8,8 +8,8 @@
 #include <omp.h>
 #include <unistd.h>
 #include <Eigen/Core>
-#include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/msg/marker.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <swarm_msgs/QuadStatePub.h>
 #include <swarm_msgs/ObserveTeammate.h>
 #include <swarm_msgs/GlobalExtrinsicStatus.h>
@@ -18,19 +18,19 @@
 #include <common_lib.h>
 #include <pcl/filters/filter.h>
 #include "esikf_tracker.hpp"
-#include <nav_msgs/Path.h>
-#include <tf/transform_broadcaster.h>
+#include <nav_msgs/msg/path.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include "ExtrinsicInfection.hpp"
 #include <algorithm>
 #include <unordered_map>
-#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 #include <pcl/common/transforms.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/search/kdtree.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
-#include <std_msgs/Int8.h>
+#include <std_msgs/msg/int8.hpp>
 #include "FEC.h"
 
 typedef unordered_map<int, ESIKF> id_esikf_map;
@@ -44,7 +44,7 @@ public:
     template<class T>
     string SetString(T &param_in);
 
-    Multi_UAV(const ros::NodeHandle &nh, const int & drone_id_);
+    Multi_UAV(const rclcpp::Node::SharedPtr &node, const int & drone_id_);
 
     ~Multi_UAV();
 
@@ -293,9 +293,9 @@ public:
 
     void UpdateTemporaryTracker(const double &lidar_end_time, const int &index, const bool &print_log);
 
-    void VisualizeText(const ros::Publisher &pub, const double &time, const int &id, const double &scale, const V3D &pos, const string &text, const V3D &color);
+    void VisualizeText(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const double &time, const int &id, const double &scale, const V3D &pos, const string &text, const V3D &color);
 
-    void VisualizeBoundingBox(const ros::Publisher &pub, const double &time, const int &id, const V3D &color, const V3D &pos, const double &size);
+    void VisualizeBoundingBox(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const double &time, const int &id, const V3D &color, const V3D &pos, const double &size);
 
 
     void VisualizeDeleteAllCluster(const double &time);
@@ -319,7 +319,7 @@ public:
 
     void VisualizePredictRegion(const double &lidar_end_time, const int &id);
 
-    void VisualizeRectangle(const ros::Publisher &pub_rect, const double &lidar_end_time, const int &rect_id, const V3D &position, const V3D rect_size);
+    void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect, const double &lidar_end_time, const int &rect_id, const V3D &position, const V3D rect_size);
 
     void VisualizeTeammateTrajectory(const ros::Publisher pub_, deque<Vector4d> &traj,
                                      const V3D position,
@@ -354,22 +354,27 @@ public:
     deque<Vector4d> teammate_traj[MAX_UAV_NUM];
 
 private:
-    ros::NodeHandle nh_;
-    ros::Subscriber QuadState_subscriber, GlobalExtrinsic_subscriber;
-    ros::Subscriber QuadState_subscriber_sim, GlobalExtrinsic_subscriber_sim;
-    ros::Publisher QuadState_publisher, GlobalExtrinsic_publisher, pubUAV, pubMeshUAV, pubCluster, pubPredictRegionInput, pubHighIntenInput, pubPredictRegion, pubTempTracker, pubTeammateList, pubTeammateNum;
-    ros::Publisher* pubTeammateOdom = new ros::Publisher[MAX_UAV_NUM];
-    ros::Publisher* pubTeammateTraj = new ros::Publisher[MAX_UAV_NUM];
+    rclcpp::Node::SharedPtr node_;
+    rclcpp::Subscription<swarm_msgs::QuadStatePub>::SharedPtr QuadState_subscriber, QuadState_subscriber_sim;
+    rclcpp::Subscription<swarm_msgs::GlobalExtrinsicStatus>::SharedPtr GlobalExtrinsic_subscriber, GlobalExtrinsic_subscriber_sim;
+    rclcpp::Publisher<swarm_msgs::QuadStatePub>::SharedPtr QuadState_publisher;
+    rclcpp::Publisher<swarm_msgs::GlobalExtrinsicStatus>::SharedPtr GlobalExtrinsic_publisher;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pubUAV, pubMeshUAV, pubCluster, pubPredictRegion, pubTempTracker;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubPredictRegionInput, pubHighIntenInput;
+    rclcpp::Publisher<swarm_msgs::ConnectedTeammateList>::SharedPtr pubTeammateList;
+    rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr pubTeammateNum;
+    std::unique_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>[]> pubTeammateOdom = std::make_unique<rclcpp::Publisher<nav_msgs::msg::Odometry>[]>(MAX_UAV_NUM);
+    std::unique_ptr<rclcpp::Publisher<visualization_msgs::msg::MarkerArray>[]> pubTeammateTraj = std::make_unique<rclcpp::Publisher<visualization_msgs::msg::MarkerArray>[]>(MAX_UAV_NUM);
     swarm_msgs::QuadStatePub quadstate_msg_pub;
     swarm_msgs::GlobalExtrinsicStatus global_extrinsic_msg;
     int drone_id, inten_threshold, min_high_inten_cluster_size, min_cluster_size, cluster_id{0}, lidar_type, actual_uav_num{4};
     vector<Cluster> cluster_pos_tag;
     vector<int> reconnected_id;
     vector<int> teammate_id_by_traj_matching;
-    ros::Publisher pubTeammateIdTrajMatching;
+    rclcpp::Publisher<swarm_msgs::ConnectedTeammateList>::SharedPtr pubTeammateIdTrajMatching;
     double predict_region_radius, valid_cluster_dist_thresh, valid_cluster_size_thresh, reset_tracker_thresh, temp_predict_region_radius;
     double valid_temp_cluster_dist_thresh, same_obj_thresh, traj_matching_start_thresh, ave_match_error_thresh;
-    nav_msgs::Odometry TeammateOdom;
+    nav_msgs::msg::Odometry TeammateOdom;
     bool found_all_teammates{false}, cluster_extraction_in_predict_region;
     double text_scale, mesh_scale;
 };

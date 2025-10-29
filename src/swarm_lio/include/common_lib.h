@@ -5,12 +5,10 @@
 #include <Eigen/Eigen>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
-#include <swarm_lio/States.h>
-#include <swarm_lio/Pose6D.h>
-#include <sensor_msgs/Imu.h>
-#include <nav_msgs/Odometry.h>
-#include <tf/transform_broadcaster.h>
-#include <eigen_conversions/eigen_msg.h>
+#include <swarm_lio/msg/states.hpp>
+#include <swarm_lio/msg/pose6_d.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 #include <color.h>
 #include <boost/filesystem.hpp>
 #include "scope_timer.hpp"
@@ -35,7 +33,7 @@ using namespace Eigen;
 
 #define DEBUG_FILE_DIR(name)     (string(string(ROOT_DIR) + "Log/"+ name))
 
-typedef swarm_lio::Pose6D     Pose6D;
+typedef swarm_lio::msg::Pose6D     Pose6D;
 typedef pcl::PointXYZINormal PointType;
 typedef pcl::PointXYZRGB     PointTypeRGB;
 typedef pcl::PointCloud<PointType>    PointCloudXYZI;
@@ -65,7 +63,7 @@ struct MeasureGroup     // Lidar data and imu dates for the current process
     };
     double lidar_beg_time;
     PointCloudXYZI::Ptr lidar;
-    deque<sensor_msgs::Imu::ConstPtr> imu;
+    deque<sensor_msgs::msg::Imu::ConstSharedPtr> imu;
 };
 
 struct StatesGroup
