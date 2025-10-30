@@ -8,20 +8,21 @@
 #include <omp.h>
 #include <unistd.h>
 #include <Eigen/Core>
+#include <common_lib.h>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
-#include <swarm_msgs/QuadStatePub.h>
-#include <swarm_msgs/ObserveTeammate.h>
-#include <swarm_msgs/GlobalExtrinsicStatus.h>
-#include <swarm_msgs/GlobalExtrinsic.h>
-#include <swarm_msgs/ConnectedTeammateList.h>
-#include <common_lib.h>
+#include <swarm_msgs/msg/quad_state_pub.hpp>
+#include <swarm_msgs/msg/observe_teammate.hpp>
+#include <swarm_msgs/msg/global_extrinsic_status.hpp>
+#include <swarm_msgs/msg/global_extrinsic.hpp>
+#include <swarm_msgs/msg/connected_teammate_list.hpp>
 #include <pcl/filters/filter.h>
 #include "esikf_tracker.hpp"
 #include <nav_msgs/msg/path.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include "ExtrinsicInfection.hpp"
 #include <algorithm>
+#include <array>
 #include <unordered_map>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <pcl/common/transforms.h>
@@ -196,9 +197,9 @@ public:
 
     void BuildMatrixWithUpperTriangular(const VD(12) &vec, M3D &rot_cov, M3D &pos_cov);
 
-    void QuadstateCbk(const swarm_msgs::msg::QuadStatePub::ConstPtr &msg);
+    void QuadstateCbk(const swarm_msgs::msg::QuadStatePub::SharedPtr &msg);
 
-    void GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::ConstPtr &msg);
+    void GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::SharedPtr &msg);
 
 
     void ResetReconnectedGlobalExtrinsic(StatesGroup &state_in, const double &lidar_end_time);
@@ -363,8 +364,9 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubPredictRegionInput, pubHighIntenInput;
     rclcpp::Publisher<swarm_msgs::msg::ConnectedTeammateList>::SharedPtr pubTeammateList;
     rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr pubTeammateNum;
-    std::unique_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>[]> pubTeammateOdom = std::make_unique<rclcpp::Publisher<nav_msgs::msg::Odometry>[]>(MAX_UAV_NUM);
-    std::unique_ptr<rclcpp::Publisher<visualization_msgs::msg::MarkerArray>[]> pubTeammateTraj = std::make_unique<rclcpp::Publisher<visualization_msgs::msg::MarkerArray>[]>(MAX_UAV_NUM);
+    std::array<rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr, MAX_UAV_NUM> pubTeammateOdom{};
+    std::array<rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr, MAX_UAV_NUM> pubTeammateTraj{};
+
     swarm_msgs::msg::QuadStatePub quadstate_msg_pub;
     swarm_msgs::msg::GlobalExtrinsicStatus global_extrinsic_msg;
     int drone_id, inten_threshold, min_high_inten_cluster_size, min_cluster_size, cluster_id{0}, lidar_type, actual_uav_num{4};

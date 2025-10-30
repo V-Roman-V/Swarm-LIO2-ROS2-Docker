@@ -3,8 +3,8 @@
 #define RETURN0     0x00
 #define RETURN0AND1 0x10
 
-const bool time_list_cut_frame(PointType &x, PointType &y) {
-    return (x.curvature < y.curvature);
+inline bool time_list_cut_frame(const PointType &x, const PointType &y) {
+    return x.curvature < y.curvature;
 }
 
 Preprocess::Preprocess()
@@ -148,7 +148,7 @@ Preprocess::process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSha
         pl_surf[i].curvature += rclcpp::Time(msg->header.stamp).seconds() * 1000 - last_frame_end_time;
         pcl_cut.push_back(pl_surf[i]);
 
-        if (valid_num == (int((cut_num + 1) * valid_pcl_size / required_cut_num) - 1)) {
+        if (valid_num == (uint((cut_num + 1) * valid_pcl_size / required_cut_num) - 1)) {
             cut_num++;
             time_lidar.push_back(last_frame_end_time);
             PointCloudXYZI::Ptr pcl_temp(new PointCloudXYZI()); //shared_ptr一定要初始化
@@ -195,7 +195,7 @@ void Preprocess::l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPt
     int plsize = pl_orig.size();
     pl_surf.reserve(plsize);
 
-    for (int i = 0; i < pl_orig.points.size(); i++) {
+    for (uint i = 0; i < pl_orig.points.size(); i++) {
 
         double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y +
                        pl_orig.points[i].z * pl_orig.points[i].z;
@@ -222,7 +222,7 @@ void Preprocess::sim_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr
     pcl::fromROSMsg(*msg, pl_orig);
     int plsize = pl_orig.size();
     pl_surf.reserve(plsize);
-    for (int i = 0; i < pl_orig.points.size(); i++) {
+    for (uint i = 0; i < pl_orig.points.size(); i++) {
         double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y +
                        pl_orig.points[i].z * pl_orig.points[i].z;
         if (range < blind * blind || range > DET_RANGE * DET_RANGE) continue;
@@ -246,7 +246,7 @@ void Preprocess::oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPt
     pl_full.clear();
     pcl::PointCloud<ouster_ros::Point> pl_orig;
     pcl::fromROSMsg(*msg, pl_orig);
-    int plsize = pl_orig.size();
+    uint plsize = pl_orig.size();
     pl_corn.reserve(plsize);
     pl_surf.reserve(plsize);
     if (feature_enabled) {
@@ -305,7 +305,7 @@ void Preprocess::oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPt
             give_feature(pl, types);
         }
     } else {
-        for (int i = 0; i < pl_orig.points.size(); i++) {
+        for (uint i = 0; i < pl_orig.points.size(); i++) {
             double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y +
                            pl_orig.points[i].z * pl_orig.points[i].z;
 
@@ -492,8 +492,8 @@ void Preprocess::velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstShar
 }
 
 void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &types) {
-    int plsize = pl.size();
-    int plsize2;
+    uint plsize = pl.size();
+    uint plsize2;
     if (plsize == 0) {
         printf("something wrong\n");
         return;
@@ -673,7 +673,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
         }
     }
 
-    plsize2 = plsize - 1;
+    plsize2 = plsize > 1 ? plsize - 1 : 0;
     double ratio;
     for (uint i = head + 1; i < plsize2; i++) {
         if (types[i].range < blind || types[i - 1].range < blind || types[i + 1].range < blind) {
@@ -750,7 +750,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     group_dis = group_dis * group_dis;
     // i_nex = i_cur;
 
-    double two_dis;
+    double two_dis = 0.0;
     vector<double> disarr;
     disarr.reserve(20);
 

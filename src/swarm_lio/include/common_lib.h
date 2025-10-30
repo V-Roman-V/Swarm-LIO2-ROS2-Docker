@@ -13,6 +13,7 @@
 #include <boost/filesystem.hpp>
 #include "scope_timer.hpp"
 #include <deque>
+#include <rclcpp/rclcpp.hpp>
 
 using namespace std;
 using namespace Eigen;

@@ -13,7 +13,7 @@ enum Feature{Nor, Poss_Plane, Real_Plane, Edge_Jump, Edge_Plane, Wire, ZeroPoint
 enum Surround{Prev, Next};
 enum E_jump{Nr_nor, Nr_zero, Nr_180, Nr_inf, Nr_blind};
 
-const bool time_list_cut_frame(PointType &x, PointType &y);
+inline bool time_list_cut_frame(const PointType &x, const PointType &y);
 
 struct orgtype
 {
@@ -106,11 +106,11 @@ class Preprocess
   void process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, std::deque<PointCloudXYZI::Ptr> &pcl_out, std::deque<double> &time_lidar, const int required_frame_num, int scan_count);
   void set(bool feat_en, int lid_type, double bld, int pfilt_num);
 
-  // sensor_msgs::msg::PointCloud2::ConstPtr pointcloud;
+  // sensor_msgs::msg::PointCloud2::SharedPtr pointcloud;
   PointCloudXYZI pl_full, pl_corn, pl_surf;
   PointCloudXYZI pl_buff[128]; //maximum 128 line lidar
   vector<orgtype> typess[128]; //maximum 128 line lidar
-  int lidar_type, point_filter_num, N_SCANS;;
+  int lidar_type, point_filter_num, N_SCANS;
   double blind, DET_RANGE;
   bool feature_enabled, given_offset_time;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_full, pub_surf, pub_corn;

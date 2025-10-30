@@ -212,7 +212,11 @@ void prop_imu_once(StatesGroup & imu_prop_state,
 }
 
 static inline builtin_interfaces::msg::Time stamp_from_sec(double sec) {
-    return rclcpp::Time{static_cast<int64_t>(sec * 1e9)}.to_msg();
+    builtin_interfaces::msg::Time t;
+    int64_t nsec = static_cast<int64_t>(sec * 1e9);
+    t.sec = static_cast<int32_t>(nsec / 1000000000);
+    t.nanosec = static_cast<uint32_t>(nsec % 1000000000);
+    return t;
 }
 
 static inline geometry_msgs::msg::Quaternion createQuaternionMsgFromRollPitchYaw(double roll, double pitch, double yaw) {
