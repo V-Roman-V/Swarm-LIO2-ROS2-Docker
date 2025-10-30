@@ -225,7 +225,7 @@ static inline geometry_msgs::msg::Quaternion createQuaternionMsgFromRollPitchYaw
     return tf2::toMsg(q);
 }
 
-void VisualizeDrone(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub) {
+void VisualizeDrone(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub) {
     Quaterniond quat;
     V3D cluster_pos_world;
     if(lidar_type == SIM){
@@ -513,7 +513,7 @@ void lasermap_fov_segment() {
     // printf("Delete Box: %d\n",int(cub_needrm.size()));
 }
 
-void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
     scan_count++;
     mtx_buffer_lidar.lock();
     if (rclcpp::Time(msg->header.stamp).seconds() < last_timestamp_lidar) {
@@ -548,7 +548,7 @@ V3D acc_raw[2] = {Zero3d, Zero3d};
 V3D acc_filtered = Zero3d;
 bool filter_acc_en{false};
 
-void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr &msg_in) {
+void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr msg_in) {
     sensor_msgs::msg::Imu msg(*msg_in);
     msg.header.stamp = stamp_from_sec(rclcpp::Time(msg_in->header.stamp).seconds() - time_offset_lidar_imu);
     double timestamp = rclcpp::Time(msg.header.stamp).seconds();
@@ -691,7 +691,7 @@ PointCloudXYZI::Ptr downsampled_map(new PointCloudXYZI());
 PointCloudXYZI::Ptr downsampled_before_filter(new PointCloudXYZI());
 pcl::VoxelGrid<PointType> downsample_filter_map;
 rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_map;
-void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &pubCloudRegistered, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &pubCloudRegisteredSparse) {
+void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudRegistered, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudRegisteredSparse) {
     if (scan_pub_en) {
         PointCloudXYZI::Ptr laserCloudFullRes(dense_pub_en ? feats_body_dense_filter_dynamic : feats_down_lidar);
         int size = laserCloudFullRes->points.size();
@@ -753,7 +753,7 @@ void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>:
     }
 }
 
-void publish_frame_body(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &pubCloudRegisteredBody_) {
+void publish_frame_body(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudRegisteredBody_) {
     PointCloudXYZI::Ptr laserCloudFullResBody(feats_undistort_lidar);
     Matrix4d lidar_to_body = Matrix4d::Identity();
     lidar_to_body.block<3,3>(0,0) = offset_R_L_I;
@@ -790,7 +790,7 @@ void set_twist(T &out) {
     out.linear.z = vel(2);
 }
 
-void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr &pubLidarSlamOdom) {
+void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubLidarSlamOdom) {
     odomAftMapped.header.frame_id = topic_name_prefix + "world";
     odomAftMapped.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
 
@@ -815,7 +815,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     if (tf_broadcaster_odom) tf_broadcaster_odom->sendTransform(ts);
 }
 
-void publish_mavros(const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr &mavros_pose_publisher) {
+void publish_mavros(const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr mavros_pose_publisher) {
     msg_body_pose.header.stamp = stamp_from_sec(lidar_end_time);
 
     msg_body_pose.header.frame_id = topic_name_prefix + "world";
@@ -884,7 +884,7 @@ void point_filter_teammate(const PointCloudXYZI &orig_pcl, PointCloudXYZI &pcl_o
 }
 
 
-void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect, const V3D &head, const V3D rect_size, const int &rect_id) {
+void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub_rect, const V3D &head, const V3D rect_size, const int &rect_id) {
     visualization_msgs::msg::Marker line_strip;
     line_strip.header.stamp = stamp_from_sec(lidar_end_time);
     line_strip.header.frame_id = topic_name_prefix + "world";
@@ -943,7 +943,7 @@ void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>
 }
 
 void point_downsample_filt_rectangle(PointCloudXYZI &orig_pcl, PointCloudXYZI &pcl_out,
-                                     const shared_ptr<Multi_UAV> &swarm_in, const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect) {
+                                     const shared_ptr<Multi_UAV> &swarm_in, const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub_rect) {
     V3D rect_size(1.2,1.2,1.5);
     PointCloudXYZI feats_undistort_orig_copy = orig_pcl;
 
@@ -1002,7 +1002,7 @@ void point_downsample_filt_rectangle(PointCloudXYZI &orig_pcl, PointCloudXYZI &p
 }
 
 
-void gt_pos_cbk_sim(const nav_msgs::msg::Odometry::ConstSharedPtr &msg) {
+void gt_pos_cbk_sim(const nav_msgs::msg::Odometry::ConstSharedPtr msg) {
     VD(7) gt;
     gt(6) = rclcpp::Time(msg->header.stamp).seconds();
     gt.block<3, 1>(3, 0) = V3D(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
@@ -1012,7 +1012,7 @@ void gt_pos_cbk_sim(const nav_msgs::msg::Odometry::ConstSharedPtr &msg) {
     ground_truth.push_back(gt);
 }
 
-void gt_pos_cbk_real(const geometry_msgs::msg::PoseStamped::ConstSharedPtr &msg) {
+void gt_pos_cbk_real(const geometry_msgs::msg::PoseStamped::ConstSharedPtr msg) {
     if(msg->pose.position.x > 9990){
         sig_buffer.notify_all();
         return;

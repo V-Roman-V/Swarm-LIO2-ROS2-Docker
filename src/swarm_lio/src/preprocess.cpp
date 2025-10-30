@@ -43,7 +43,7 @@ void Preprocess::set(bool feat_en, int lid_type, double bld, int pfilt_num) {
 }
 
 void
-Preprocess::process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, deque<PointCloudXYZI::Ptr> &pcl_out,
+Preprocess::process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg, deque<PointCloudXYZI::Ptr> &pcl_out,
                                    deque<double> &time_lidar, const int required_frame_num, int scan_count) {
     pl_surf.clear();
     pl_full.clear();
@@ -161,7 +161,7 @@ Preprocess::process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSha
     }
 }
 
-void Preprocess::process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, PointCloudXYZI::Ptr &pcl_out) {
+void Preprocess::process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg, PointCloudXYZI::Ptr &pcl_out) {
     switch (lidar_type) {
         case OUSTER:
             oust_handler(msg);
@@ -187,7 +187,7 @@ void Preprocess::process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &ms
 }
 
 
-void Preprocess::l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+void Preprocess::l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
     pl_surf.clear();
     pl_full.clear();
     pcl::PointCloud<pcl::PointXYZRGB> pl_orig;
@@ -215,7 +215,7 @@ void Preprocess::l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPt
     }
 }
 
-void Preprocess::sim_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+void Preprocess::sim_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
     pl_surf.clear();
     pl_full.clear();
     pcl::PointCloud<pcl::PointXYZI> pl_orig;
@@ -240,7 +240,7 @@ void Preprocess::sim_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr
     }
 }
 
-void Preprocess::oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+void Preprocess::oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
     pl_surf.clear();
     pl_corn.clear();
     pl_full.clear();
@@ -333,7 +333,7 @@ void Preprocess::oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPt
 
 #define MAX_LINE_NUM 64
 
-void Preprocess::velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+void Preprocess::velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
     pl_surf.clear();
     pl_corn.clear();
     pl_full.clear();

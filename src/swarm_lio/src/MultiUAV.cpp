@@ -25,7 +25,7 @@ string Multi_UAV::SetString(T &param_in) {
     return str;
 }
 
-Multi_UAV::Multi_UAV(const rclcpp::Node::SharedPtr &node, const int & drone_id_) {
+Multi_UAV::Multi_UAV(const rclcpp::Node::SharedPtr node, const int & drone_id_) {
     node_ = node;
     drone_id = drone_id_;
     rot_world_to_gravity.setIdentity();
@@ -127,7 +127,7 @@ void Multi_UAV::BuildMatrixWithUpperTriangular(const VD(12) &vec, M3D &rot_cov, 
     pos_cov(2,2) = vec(11);
 }
 
-void Multi_UAV::QuadstateCbk(const swarm_msgs::msg::QuadStatePub::SharedPtr &msg) {
+void Multi_UAV::QuadstateCbk(const swarm_msgs::msg::QuadStatePub::SharedPtr msg) {
     //判断队友飞机id
     int id = msg->drone_id;
     if (id == drone_id)
@@ -221,7 +221,7 @@ void Multi_UAV::QuadstateCbk(const swarm_msgs::msg::QuadStatePub::SharedPtr &msg
 }
 
 
-void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::SharedPtr &msg) {
+void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::SharedPtr msg) {
     if (found_all_teammates || msg->drone_id == drone_id)
         return;
 
@@ -1249,7 +1249,7 @@ void Multi_UAV::UpdateTemporaryTracker(const double &lidar_end_time, const int &
     temp_tracker[index].dyn_pos_time.push_back(pos_time);
 }
 
-void Multi_UAV::VisualizeText(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const double &time, const int &id, const double &scale, const V3D &pos, const string &text, const V3D &color){
+void Multi_UAV::VisualizeText(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub, const double &time, const int &id, const double &scale, const V3D &pos, const string &text, const V3D &color){
     //Publish Text
     visualization_msgs::msg::Marker vis_text;
     vis_text.header.stamp = stamp_from_sec(time);
@@ -1276,7 +1276,7 @@ void Multi_UAV::VisualizeText(const rclcpp::Publisher<visualization_msgs::msg::M
     pub->publish(vis_text);
 }
 
-void Multi_UAV::VisualizeBoundingBox(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const double &time, const int &id, const V3D &color, const V3D &pos, const double &size){
+void Multi_UAV::VisualizeBoundingBox(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub, const double &time, const int &id, const V3D &color, const V3D &pos, const double &size){
     //Publish Bounding box
     visualization_msgs::msg::Marker line_strip;
     line_strip.header.stamp = stamp_from_sec(time);
@@ -1802,7 +1802,7 @@ void Multi_UAV::VisualizePredictRegion(const double &lidar_end_time, const int &
     }
 }
 
-void Multi_UAV::VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect, const double &lidar_end_time, const int &rect_id, const V3D &position, const V3D rect_size) {
+void Multi_UAV::VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub_rect, const double &lidar_end_time, const int &rect_id, const V3D &position, const V3D rect_size) {
     visualization_msgs::msg::Marker line_strip;
     line_strip.header.stamp = stamp_from_sec(lidar_end_time);
     line_strip.header.frame_id = topic_name_prefix + "world";

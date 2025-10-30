@@ -49,7 +49,13 @@ RUN rm -rf /var/lib/apt/lists/*
 WORKDIR /tmp/gtsam
 RUN git clone --branch 4.2 https://github.com/borglab/gtsam.git gtsam && \
     mkdir -p gtsam/build && cd gtsam/build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF .. && \
+    cmake .. \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF \
+      -DGTSAM_USE_SYSTEM_EIGEN=ON \
+      -DEIGEN3_INCLUDE_DIR=/usr/include/eigen3 \
+      -DGTSAM_BUILD_EXAMPLES=OFF \
+      -DGTSAM_BUILD_TESTS=OFF && \
     make -j$(nproc) && make install && \
     cp /usr/local/lib/libgtsam*.so /usr/lib/
 
@@ -71,13 +77,11 @@ COPY src/ $ROS_WS/src/
 
 # Build the workspace
 WORKDIR $ROS_WS
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select swarm_msgs"
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select udp_bridge"
-# RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release"
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release"
 
 # Source ROS and workspace by default
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-# RUN echo "source $ROS_WS/install/setup.bash" >> ~/.bashrc
+RUN echo "source $ROS_WS/install/setup.bash" >> ~/.bashrc
 
 # Default command
 CMD ["/bin/bash"]

@@ -45,7 +45,7 @@ public:
     template<class T>
     string SetString(T &param_in);
 
-    Multi_UAV(const rclcpp::Node::SharedPtr &node, const int & drone_id_);
+    Multi_UAV(const rclcpp::Node::SharedPtr node, const int & drone_id_);
 
     ~Multi_UAV();
 
@@ -197,9 +197,9 @@ public:
 
     void BuildMatrixWithUpperTriangular(const VD(12) &vec, M3D &rot_cov, M3D &pos_cov);
 
-    void QuadstateCbk(const swarm_msgs::msg::QuadStatePub::SharedPtr &msg);
+    void QuadstateCbk(const swarm_msgs::msg::QuadStatePub::SharedPtr msg);
 
-    void GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::SharedPtr &msg);
+    void GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::SharedPtr msg);
 
 
     void ResetReconnectedGlobalExtrinsic(StatesGroup &state_in, const double &lidar_end_time);
@@ -294,9 +294,9 @@ public:
 
     void UpdateTemporaryTracker(const double &lidar_end_time, const int &index, const bool &print_log);
 
-    void VisualizeText(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const double &time, const int &id, const double &scale, const V3D &pos, const string &text, const V3D &color);
+    void VisualizeText(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub, const double &time, const int &id, const double &scale, const V3D &pos, const string &text, const V3D &color);
 
-    void VisualizeBoundingBox(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const double &time, const int &id, const V3D &color, const V3D &pos, const double &size);
+    void VisualizeBoundingBox(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub, const double &time, const int &id, const V3D &color, const V3D &pos, const double &size);
 
 
     void VisualizeDeleteAllCluster(const double &time);
@@ -320,7 +320,7 @@ public:
 
     void VisualizePredictRegion(const double &lidar_end_time, const int &id);
 
-    void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect, const double &lidar_end_time, const int &rect_id, const V3D &position, const V3D rect_size);
+    void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub_rect, const double &lidar_end_time, const int &rect_id, const V3D &position, const V3D rect_size);
 
     void VisualizeTeammateTrajectory(const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_, deque<Vector4d> &traj,
                                      const V3D position,

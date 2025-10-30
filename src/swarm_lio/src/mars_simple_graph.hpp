@@ -162,7 +162,7 @@ namespace mars{
                 return false;
             }
 
-            for(int i = 0 ; i < is_connected.size();i++){
+            for(uint i = 0 ; i < is_connected.size();i++){
                 if(is_connected[i] ){
                     connect_nodes.push_back(i);
                 }

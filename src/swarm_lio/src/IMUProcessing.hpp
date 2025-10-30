@@ -45,7 +45,7 @@ public:
 
     void Reset();
 
-    void Reset(double start_timestamp, const sensor_msgs::msg::Imu::ConstSharedPtr &lastimu);
+    // void Reset(double start_timestamp, const sensor_msgs::msg::Imu::ConstSharedPtr lastimu);
 
     void set_extrinsic(const M3D &rot, const V3D &trans);
 

@@ -102,8 +102,8 @@ class Preprocess
   Preprocess();
   ~Preprocess();
   
-  void process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, PointCloudXYZI::Ptr &pcl_out);
-  void process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, std::deque<PointCloudXYZI::Ptr> &pcl_out, std::deque<double> &time_lidar, const int required_frame_num, int scan_count);
+  void process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg, PointCloudXYZI::Ptr &pcl_out);
+  void process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg, std::deque<PointCloudXYZI::Ptr> &pcl_out, std::deque<double> &time_lidar, const int required_frame_num, int scan_count);
   void set(bool feat_en, int lid_type, double bld, int pfilt_num);
 
   // sensor_msgs::msg::PointCloud2::SharedPtr pointcloud;
@@ -118,10 +118,10 @@ class Preprocess
     
 
   private:
-  void oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
-  void velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
-  void l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
-  void sim_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
+  void velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
+  void l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
+  void sim_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
   void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
   int  plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, uint &i_nex, Eigen::Vector3d &curr_direct);
   bool small_plane(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct);
