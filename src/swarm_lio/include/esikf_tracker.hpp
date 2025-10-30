@@ -59,7 +59,7 @@ public:
 
     //重置滤波器，状态完全由观测决定，且协方差为0
     void reset( const VectorXd &meas, const double &lidar_end_time) {
-        ROS_WARN("No update for too long time! EKF Tracker reset!");
+        RCLCPP_WARN(rclcpp::get_logger("ESIKF"), "No update for too long time! EKF Tracker reset!");
         z_ = meas;
         x_ = z_;
         P_.setZero();

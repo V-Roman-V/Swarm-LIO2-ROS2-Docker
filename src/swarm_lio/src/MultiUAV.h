@@ -321,7 +321,7 @@ public:
 
     void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect, const double &lidar_end_time, const int &rect_id, const V3D &position, const V3D rect_size);
 
-    void VisualizeTeammateTrajectory(const ros::Publisher pub_, deque<Vector4d> &traj,
+    void VisualizeTeammateTrajectory(const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_, deque<Vector4d> &traj,
                                      const V3D position,
                                      const string namespace_,
                                      const double mkr_size,
@@ -330,7 +330,7 @@ public:
                                      const int has_observation
     );
 
-    void VisualizeTeammateTrajectorySphere(const ros::Publisher pub_, deque<Vector4d> &traj,
+    void VisualizeTeammateTrajectorySphere(const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_, deque<Vector4d> &traj,
                                      const V3D position,
                                      const string namespace_,
                                      const double mkr_size,
