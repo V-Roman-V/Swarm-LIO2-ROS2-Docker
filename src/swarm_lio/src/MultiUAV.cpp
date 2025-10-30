@@ -6,6 +6,12 @@ Author: Fangcheng Zhu
 email: zhufc@connect.hku.hk
 */
 #include "MultiUAV.h"
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
+static inline builtin_interfaces::msg::Time stamp_from_sec(double sec) {
+    return rclcpp::Time{static_cast<int64_t>(sec * 1e9)}.to_msg();
+}
 
 template <class T>
 string Multi_UAV::SetString(T &param_in) {
@@ -15,8 +21,8 @@ string Multi_UAV::SetString(T &param_in) {
     return str;
 }
 
-Multi_UAV::Multi_UAV(const ros::NodeHandle &nh, const int & drone_id_) {
-    nh_ = nh;
+Multi_UAV::Multi_UAV(const rclcpp::Node::SharedPtr &node, const int & drone_id_) {
+    node_ = node;
     drone_id = drone_id_;
     rot_world_to_gravity.setIdentity();
     //Load params
@@ -46,9 +52,12 @@ Multi_UAV::Multi_UAV(const ros::NodeHandle &nh, const int & drone_id_) {
     mesh_scale = 0.8;
     if (lidar_type == SIM) {
         //For Decentralized Simulation
-        QuadState_subscriber_sim = nh_.subscribe(sub_quadstate_topic_name, 1000, &Multi_UAV::QuadstateCbk, this);
-        GlobalExtrinsic_subscriber_sim = nh_.subscribe(sub_global_extrinsic_topic_name, 1000,
-                                                       &Multi_UAV::GlobalExtrinsicCbk, this);
+        QuadState_subscriber_sim = node_->create_subscription<swarm_msgs::QuadStatePub>(
+            sub_quadstate_topic_name, rclcpp::SystemDefaultsQoS(),
+            std::bind(&Multi_UAV::QuadstateCbk, this, std::placeholders::_1));
+        GlobalExtrinsic_subscriber_sim = node_->create_subscription<swarm_msgs::GlobalExtrinsicStatus>(
+            sub_global_extrinsic_topic_name, rclcpp::SystemDefaultsQoS(),
+            std::bind(&Multi_UAV::GlobalExtrinsicCbk, this, std::placeholders::_1));
         same_obj_thresh = 0.5;
         valid_temp_cluster_dist_thresh = 0.8;
         sub_quadstate_topic_name = "/quadstate_to_teammate";
@@ -58,31 +67,29 @@ Multi_UAV::Multi_UAV(const ros::NodeHandle &nh, const int & drone_id_) {
         mesh_scale = 1.2;
     }
 
-    QuadState_subscriber = nh_.subscribe(sub_quadstate_topic_name, 1000, &Multi_UAV::QuadstateCbk, this);
-    QuadState_publisher = nh_.advertise<swarm_msgs::QuadStatePub>("/quadstate_to_teammate", 1000);
-    GlobalExtrinsic_subscriber = nh_.subscribe(sub_global_extrinsic_topic_name, 1000,
-                                               &Multi_UAV::GlobalExtrinsicCbk, this);
-    GlobalExtrinsic_publisher = nh_.advertise<swarm_msgs::GlobalExtrinsicStatus>("/global_extrinsic_to_teammate",
-                                                                                 1000);
-    pubUAV = nh_.advertise<visualization_msgs::Marker>("/" + topic_name_prefix + "uav_visualization", 100);
-    pubMeshUAV = nh_.advertise<visualization_msgs::Marker>("/" + topic_name_prefix + "uav_mesh_visualization", 100);
-    pubCluster = nh_.advertise<visualization_msgs::Marker>("/" + topic_name_prefix + "cluster_visualization", 100);
-    pubPredictRegionInput = nh_.advertise<sensor_msgs::PointCloud2>("/" + topic_name_prefix + "cluster_input",
-                                                                    100);
-    pubHighIntenInput = nh_.advertise<sensor_msgs::PointCloud2>("/" + topic_name_prefix + "high_intensity_input",
-                                                                100);
-    pubPredictRegion = nh_.advertise<visualization_msgs::Marker>("/" + topic_name_prefix + "predict_region", 100);
-    pubTempTracker = nh_.advertise<visualization_msgs::Marker>("/" + topic_name_prefix + "temp_tracker", 100);
-    pubTeammateList = nh_.advertise<swarm_msgs::ConnectedTeammateList>("/" + topic_name_prefix + "connected_teammate_list", 10);
-    pubTeammateNum = nh_.advertise<std_msgs::Int8>("/" + topic_name_prefix + "connected_teammate_num", 10);
-    pubTeammateIdTrajMatching = nh_.advertise<swarm_msgs::ConnectedTeammateList>("/" + topic_name_prefix + "teammate_id_with_traj_matching", 10);
+    QuadState_subscriber = node_->create_subscription<swarm_msgs::QuadStatePub>(
+        sub_quadstate_topic_name, rclcpp::SystemDefaultsQoS(),
+        std::bind(&Multi_UAV::QuadstateCbk, this, std::placeholders::_1));
+    QuadState_publisher = node_->create_publisher<swarm_msgs::QuadStatePub>("/quadstate_to_teammate", rclcpp::SystemDefaultsQoS());
+    GlobalExtrinsic_subscriber = node_->create_subscription<swarm_msgs::GlobalExtrinsicStatus>(
+        sub_global_extrinsic_topic_name, rclcpp::SystemDefaultsQoS(),
+        std::bind(&Multi_UAV::GlobalExtrinsicCbk, this, std::placeholders::_1));
+    GlobalExtrinsic_publisher = node_->create_publisher<swarm_msgs::GlobalExtrinsicStatus>("/global_extrinsic_to_teammate", rclcpp::SystemDefaultsQoS());
+    pubUAV = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "uav_visualization", rclcpp::SystemDefaultsQoS());
+    pubMeshUAV = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "uav_mesh_visualization", rclcpp::SystemDefaultsQoS());
+    pubCluster = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "cluster_visualization", rclcpp::SystemDefaultsQoS());
+    pubPredictRegionInput = node_->create_publisher<sensor_msgs::msg::PointCloud2>("/" + topic_name_prefix + "cluster_input", rclcpp::SystemDefaultsQoS());
+    pubHighIntenInput = node_->create_publisher<sensor_msgs::msg::PointCloud2>("/" + topic_name_prefix + "high_intensity_input", rclcpp::SystemDefaultsQoS());
+    pubPredictRegion = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "predict_region", rclcpp::SystemDefaultsQoS());
+    pubTempTracker = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "temp_tracker", rclcpp::SystemDefaultsQoS());
+    pubTeammateList = node_->create_publisher<swarm_msgs::ConnectedTeammateList>("/" + topic_name_prefix + "connected_teammate_list", rclcpp::SystemDefaultsQoS());
+    pubTeammateNum = node_->create_publisher<std_msgs::msg::Int8>("/" + topic_name_prefix + "connected_teammate_num", rclcpp::SystemDefaultsQoS());
+    pubTeammateIdTrajMatching = node_->create_publisher<swarm_msgs::ConnectedTeammateList>("/" + topic_name_prefix + "teammate_id_with_traj_matching", rclcpp::SystemDefaultsQoS());
 
     for (int i = 0; i < MAX_UAV_NUM; ++i) {
-        pubTeammateOdom[i] = nh_.advertise<nav_msgs::Odometry>("/" + topic_name_prefix + "teammate_odom/UAV" +
-                                                               SetString(i), 100);
+        pubTeammateOdom[i] = node_->create_publisher<nav_msgs::msg::Odometry>("/" + topic_name_prefix + "teammate_odom/UAV" + SetString(i), rclcpp::SystemDefaultsQoS());
         //Visualize Teammate Trajectory
-        pubTeammateTraj[i] = nh_.advertise<visualization_msgs::MarkerArray>("/" + topic_name_prefix + "teammate_traj/UAV" +
-                                                                            SetString(i), 100);
+        pubTeammateTraj[i] = node_->create_publisher<visualization_msgs::msg::MarkerArray>("/" + topic_name_prefix + "teammate_traj/UAV" + SetString(i), rclcpp::SystemDefaultsQoS());
     }
     temp_tracker.clear();
     teammate_tracker.clear();
@@ -134,7 +141,7 @@ void Multi_UAV::QuadstateCbk(const swarm_msgs::QuadStatePub::ConstPtr &msg) {
         mtx_buffer_reconnectID.unlock();
 
 
-        teammate_sub.teammate_state_temp.sub_time = msg->header.stamp.toSec();
+        teammate_sub.teammate_state_temp.sub_time = rclcpp::Time(msg->header.stamp).seconds();
         teammate_sub.teammate_state_temp.rot =
         teammate_sub.teammate_state_temp.rot_end = Quaterniond(msg->pose.pose.orientation.w,
                                                                msg->pose.pose.orientation.x,
@@ -170,7 +177,7 @@ void Multi_UAV::QuadstateCbk(const swarm_msgs::QuadStatePub::ConstPtr &msg) {
         }
     } else {
         Teammate teammate_sub;
-        teammate_sub.teammate_state_temp.sub_time = msg->header.stamp.toSec();
+        teammate_sub.teammate_state_temp.sub_time = rclcpp::Time(msg->header.stamp).seconds();
         teammate_sub.teammate_state_temp.rot =
         teammate_sub.teammate_state_temp.rot_end = Quaterniond(msg->pose.pose.orientation.w,
                                                                msg->pose.pose.orientation.x,
@@ -222,7 +229,7 @@ void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::GlobalExtrinsicStatus::Cons
     if(iter == teammates.end())
         return;
     else{
-        double duration = msg->header.stamp.toSec() - iter->second.first_connect_time;
+        double duration = rclcpp::Time(msg->header.stamp).seconds() - iter->second.first_connect_time;
         if(duration < 2.0 || iter->second.first_connect_time < 0)
             return;
     }
@@ -317,7 +324,7 @@ void Multi_UAV::ResetTeammateState() {
 //可以从drone_id知道飞机编号
 void Multi_UAV::PublishQuadstate(const V3D &unbiased_gyr, const double &lidar_end_time, const double &first_lidar_time) {
     quadstate_msg_pub.teammate.clear();
-    quadstate_msg_pub.header.stamp = ros::Time().fromSec(lidar_end_time);
+    quadstate_msg_pub.header.stamp = stamp_from_sec(lidar_end_time);
     quadstate_msg_pub.header.frame_id = topic_name_prefix + "world";
     if (lidar_type == SIM)
         quadstate_msg_pub.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
@@ -368,7 +375,7 @@ void Multi_UAV::PublishQuadstate(const V3D &unbiased_gyr, const double &lidar_en
 
 void Multi_UAV::PublishGlobalExtrinsic(const double &lidar_end_time) {
     global_extrinsic_msg.extrinsic.clear();
-    global_extrinsic_msg.header.stamp = ros::Time().fromSec(lidar_end_time);
+    global_extrinsic_msg.header.stamp = stamp_from_sec(lidar_end_time);
     global_extrinsic_msg.header.frame_id = topic_name_prefix + "world";
     global_extrinsic_msg.drone_id = drone_id;
     V3D world_to_gravity_deg = RotMtoEuler(rot_world_to_gravity) * 57.3;
@@ -397,11 +404,13 @@ void Multi_UAV::PublishGlobalExtrinsic(const double &lidar_end_time) {
 
 template<class T>
 bool Multi_UAV::LoadParam(string param_name, T &param_value, T default_value) {
-    if (nh_.getParam(param_name, param_value)) {
+    if (!node_->has_parameter(param_name)) node_->declare_parameter<T>(param_name, default_value);
+    try {
+        param_value = node_->get_parameter(param_name).get_value<T>();
         printf("\033[0;32m Load param %s success: \033[0;0m", param_name.c_str());
         cout << param_value << endl;
         return true;
-    } else {
+    } catch (...) {
         printf("\033[0;33m Load param %s failed, use default value: \033[0;0m", param_name.c_str());
         param_value = default_value;
         cout << param_value << endl;
@@ -411,14 +420,16 @@ bool Multi_UAV::LoadParam(string param_name, T &param_value, T default_value) {
 
 template<class T>
 bool Multi_UAV::LoadParam(string param_name, vector<T> &param_value, vector<T> default_value) {
-    if (nh_.getParam(param_name, param_value)) {
+    if (!node_->has_parameter(param_name)) node_->declare_parameter<std::vector<T>>(param_name, default_value);
+    try {
+        param_value = node_->get_parameter(param_name).get_value<std::vector<T>>();
         printf("\033[0;32m Load param %s success: \033[0;0m", param_name.c_str());
         for (int i = 0; i < param_value.size(); i++) {
             cout << param_value[i] << " ";
         }
         cout << endl;
         return true;
-    } else {
+    } catch (...) {
         printf("\033[0;33m Load param %s failed, use default value: \033[0;0m", param_name.c_str());
         param_value = default_value;
         for (int i = 0; i < param_value.size(); i++) {
@@ -436,13 +447,10 @@ void Multi_UAV::SetPosestamp(T &out) {
     out.pose.position.z = state.pos_end(2);
 
     V3D euler_cur = RotMtoEuler(state.rot_end);
-    geometry_msgs::Quaternion geoQuat;
-    geoQuat = tf::createQuaternionMsgFromRollPitchYaw
-            (euler_cur(0), euler_cur(1), euler_cur(2));
-    out.pose.orientation.x = geoQuat.x;
-    out.pose.orientation.y = geoQuat.y;
-    out.pose.orientation.z = geoQuat.z;
-    out.pose.orientation.w = geoQuat.w;
+    tf2::Quaternion q_tf;
+    q_tf.setRPY(euler_cur(0), euler_cur(1), euler_cur(2));
+    auto geoQuat = tf2::toMsg(q_tf);
+    out.pose.orientation = geoQuat;
 }
 
 
@@ -1340,7 +1348,7 @@ void Multi_UAV::PublishTeammateOdom(const double &lidar_end_time){
     for (auto iter = teammate_tracker.begin(); iter != teammate_tracker.end(); ++iter){
         int teammate_id = iter->first;
         cout << teammate_id << "  ";
-        if(pubTeammateOdom[teammate_id].getNumSubscribers() < 1)
+        if(pubTeammateOdom[teammate_id]->get_subscription_count() < 1)
             continue;
 
         auto iter_teammate = teammates.find(teammate_id);
@@ -1350,28 +1358,25 @@ void Multi_UAV::PublishTeammateOdom(const double &lidar_end_time){
         V3D teammate_pos_gravity = rot_world_to_gravity * (state.global_extrinsic_rot[teammate_id] * iter_teammate->second.teammate_state.pos_end + state.global_extrinsic_trans[teammate_id]);
         TeammateOdom.header.frame_id = topic_name_prefix + "world";
         TeammateOdom.child_frame_id = "quad" + SetString(teammate_id) + "_aft_mapped";
-        TeammateOdom.header.stamp = ros::Time().fromSec(lidar_end_time);
+        TeammateOdom.header.stamp = stamp_from_sec(lidar_end_time);
         TeammateOdom.pose.pose.position.x = teammate_pos_gravity(0);
         TeammateOdom.pose.pose.position.y = teammate_pos_gravity(1);
         TeammateOdom.pose.pose.position.z = teammate_pos_gravity(2);
 
 
         M3D teammate_rot_gravity = rot_world_to_gravity * state.global_extrinsic_rot[teammate_id] * iter_teammate->second.teammate_state.rot_end;
-        geometry_msgs::Quaternion geoQuat;
+        geometry_msgs::msg::Quaternion geoQuat;
         V3D euler_cur = RotMtoEuler(teammate_rot_gravity);
-        geoQuat = tf::createQuaternionMsgFromRollPitchYaw
-                (euler_cur(0), euler_cur(1), euler_cur(2));
-        TeammateOdom.pose.pose.orientation.x = geoQuat.x;
-        TeammateOdom.pose.pose.orientation.y = geoQuat.y;
-        TeammateOdom.pose.pose.orientation.z = geoQuat.z;
-        TeammateOdom.pose.pose.orientation.w = geoQuat.w;
+        tf2::Quaternion q_tf;
+        q_tf.setRPY(euler_cur(0), euler_cur(1), euler_cur(2));
+        TeammateOdom.pose.pose.orientation = tf2::toMsg(q_tf);
 
 
         V3D teammate_vel_gravity = rot_world_to_gravity * state.global_extrinsic_rot[teammate_id] * iter_teammate->second.teammate_state.vel;
         TeammateOdom.twist.twist.linear.x = teammate_vel_gravity(0);
         TeammateOdom.twist.twist.linear.y = teammate_vel_gravity(1);
         TeammateOdom.twist.twist.linear.z = teammate_vel_gravity(2);
-        pubTeammateOdom[teammate_id].publish(TeammateOdom);
+        pubTeammateOdom[teammate_id]->publish(TeammateOdom);
     }
     cout << RESET << endl;
 }

@@ -113,7 +113,7 @@ Preprocess::process_cut_frame_pcl2(const sensor_msgs::msg::PointCloud2::ConstSha
             added_pt.y = pl_orig.points[i].y;
             added_pt.z = pl_orig.points[i].z;
             added_pt.intensity = pl_orig.points[i].intensity;
-            added_pt.curvature = (pl_orig.points[i].timestamp - msg->header.stamp.toSec()) * 1000;  //s to ms
+            added_pt.curvature = (pl_orig.points[i].timestamp - rclcpp::Time(msg->header.stamp).seconds()) * 1000;  //s to ms
 
             if(added_pt.curvature/1000 > 1.0/original_freq + 0.02){
                 cout << BOLDRED << "offset time: " << added_pt.curvature/1000 << RESET << endl;
