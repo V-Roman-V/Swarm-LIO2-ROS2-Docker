@@ -196,9 +196,9 @@ public:
 
     void BuildMatrixWithUpperTriangular(const VD(12) &vec, M3D &rot_cov, M3D &pos_cov);
 
-    void QuadstateCbk(const swarm_msgs::QuadStatePub::ConstPtr &msg);
+    void QuadstateCbk(const swarm_msgs::msg::QuadStatePub::ConstPtr &msg);
 
-    void GlobalExtrinsicCbk(const swarm_msgs::GlobalExtrinsicStatus::ConstPtr &msg);
+    void GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::ConstPtr &msg);
 
 
     void ResetReconnectedGlobalExtrinsic(StatesGroup &state_in, const double &lidar_end_time);
@@ -355,23 +355,23 @@ public:
 
 private:
     rclcpp::Node::SharedPtr node_;
-    rclcpp::Subscription<swarm_msgs::QuadStatePub>::SharedPtr QuadState_subscriber, QuadState_subscriber_sim;
-    rclcpp::Subscription<swarm_msgs::GlobalExtrinsicStatus>::SharedPtr GlobalExtrinsic_subscriber, GlobalExtrinsic_subscriber_sim;
-    rclcpp::Publisher<swarm_msgs::QuadStatePub>::SharedPtr QuadState_publisher;
-    rclcpp::Publisher<swarm_msgs::GlobalExtrinsicStatus>::SharedPtr GlobalExtrinsic_publisher;
+    rclcpp::Subscription<swarm_msgs::msg::QuadStatePub>::SharedPtr QuadState_subscriber, QuadState_subscriber_sim;
+    rclcpp::Subscription<swarm_msgs::msg::GlobalExtrinsicStatus>::SharedPtr GlobalExtrinsic_subscriber, GlobalExtrinsic_subscriber_sim;
+    rclcpp::Publisher<swarm_msgs::msg::QuadStatePub>::SharedPtr QuadState_publisher;
+    rclcpp::Publisher<swarm_msgs::msg::GlobalExtrinsicStatus>::SharedPtr GlobalExtrinsic_publisher;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pubUAV, pubMeshUAV, pubCluster, pubPredictRegion, pubTempTracker;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubPredictRegionInput, pubHighIntenInput;
-    rclcpp::Publisher<swarm_msgs::ConnectedTeammateList>::SharedPtr pubTeammateList;
+    rclcpp::Publisher<swarm_msgs::msg::ConnectedTeammateList>::SharedPtr pubTeammateList;
     rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr pubTeammateNum;
     std::unique_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>[]> pubTeammateOdom = std::make_unique<rclcpp::Publisher<nav_msgs::msg::Odometry>[]>(MAX_UAV_NUM);
     std::unique_ptr<rclcpp::Publisher<visualization_msgs::msg::MarkerArray>[]> pubTeammateTraj = std::make_unique<rclcpp::Publisher<visualization_msgs::msg::MarkerArray>[]>(MAX_UAV_NUM);
-    swarm_msgs::QuadStatePub quadstate_msg_pub;
-    swarm_msgs::GlobalExtrinsicStatus global_extrinsic_msg;
+    swarm_msgs::msg::QuadStatePub quadstate_msg_pub;
+    swarm_msgs::msg::GlobalExtrinsicStatus global_extrinsic_msg;
     int drone_id, inten_threshold, min_high_inten_cluster_size, min_cluster_size, cluster_id{0}, lidar_type, actual_uav_num{4};
     vector<Cluster> cluster_pos_tag;
     vector<int> reconnected_id;
     vector<int> teammate_id_by_traj_matching;
-    rclcpp::Publisher<swarm_msgs::ConnectedTeammateList>::SharedPtr pubTeammateIdTrajMatching;
+    rclcpp::Publisher<swarm_msgs::msg::ConnectedTeammateList>::SharedPtr pubTeammateIdTrajMatching;
     double predict_region_radius, valid_cluster_dist_thresh, valid_cluster_size_thresh, reset_tracker_thresh, temp_predict_region_radius;
     double valid_temp_cluster_dist_thresh, same_obj_thresh, traj_matching_start_thresh, ave_match_error_thresh;
     nav_msgs::msg::Odometry TeammateOdom;

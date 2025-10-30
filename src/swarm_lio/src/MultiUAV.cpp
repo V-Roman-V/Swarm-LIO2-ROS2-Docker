@@ -52,10 +52,10 @@ Multi_UAV::Multi_UAV(const rclcpp::Node::SharedPtr &node, const int & drone_id_)
     mesh_scale = 0.8;
     if (lidar_type == SIM) {
         //For Decentralized Simulation
-        QuadState_subscriber_sim = node_->create_subscription<swarm_msgs::QuadStatePub>(
+        QuadState_subscriber_sim = node_->create_subscription<swarm_msgs::msg::QuadStatePub>(
             sub_quadstate_topic_name, rclcpp::SystemDefaultsQoS(),
             std::bind(&Multi_UAV::QuadstateCbk, this, std::placeholders::_1));
-        GlobalExtrinsic_subscriber_sim = node_->create_subscription<swarm_msgs::GlobalExtrinsicStatus>(
+        GlobalExtrinsic_subscriber_sim = node_->create_subscription<swarm_msgs::msg::GlobalExtrinsicStatus>(
             sub_global_extrinsic_topic_name, rclcpp::SystemDefaultsQoS(),
             std::bind(&Multi_UAV::GlobalExtrinsicCbk, this, std::placeholders::_1));
         same_obj_thresh = 0.5;
@@ -67,14 +67,14 @@ Multi_UAV::Multi_UAV(const rclcpp::Node::SharedPtr &node, const int & drone_id_)
         mesh_scale = 1.2;
     }
 
-    QuadState_subscriber = node_->create_subscription<swarm_msgs::QuadStatePub>(
+    QuadState_subscriber = node_->create_subscription<swarm_msgs::msg::QuadStatePub>(
         sub_quadstate_topic_name, rclcpp::SystemDefaultsQoS(),
         std::bind(&Multi_UAV::QuadstateCbk, this, std::placeholders::_1));
-    QuadState_publisher = node_->create_publisher<swarm_msgs::QuadStatePub>("/quadstate_to_teammate", rclcpp::SystemDefaultsQoS());
-    GlobalExtrinsic_subscriber = node_->create_subscription<swarm_msgs::GlobalExtrinsicStatus>(
+    QuadState_publisher = node_->create_publisher<swarm_msgs::msg::QuadStatePub>("/quadstate_to_teammate", rclcpp::SystemDefaultsQoS());
+    GlobalExtrinsic_subscriber = node_->create_subscription<swarm_msgs::msg::GlobalExtrinsicStatus>(
         sub_global_extrinsic_topic_name, rclcpp::SystemDefaultsQoS(),
         std::bind(&Multi_UAV::GlobalExtrinsicCbk, this, std::placeholders::_1));
-    GlobalExtrinsic_publisher = node_->create_publisher<swarm_msgs::GlobalExtrinsicStatus>("/global_extrinsic_to_teammate", rclcpp::SystemDefaultsQoS());
+    GlobalExtrinsic_publisher = node_->create_publisher<swarm_msgs::msg::GlobalExtrinsicStatus>("/global_extrinsic_to_teammate", rclcpp::SystemDefaultsQoS());
     pubUAV = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "uav_visualization", rclcpp::SystemDefaultsQoS());
     pubMeshUAV = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "uav_mesh_visualization", rclcpp::SystemDefaultsQoS());
     pubCluster = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "cluster_visualization", rclcpp::SystemDefaultsQoS());
@@ -82,9 +82,9 @@ Multi_UAV::Multi_UAV(const rclcpp::Node::SharedPtr &node, const int & drone_id_)
     pubHighIntenInput = node_->create_publisher<sensor_msgs::msg::PointCloud2>("/" + topic_name_prefix + "high_intensity_input", rclcpp::SystemDefaultsQoS());
     pubPredictRegion = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "predict_region", rclcpp::SystemDefaultsQoS());
     pubTempTracker = node_->create_publisher<visualization_msgs::msg::Marker>("/" + topic_name_prefix + "temp_tracker", rclcpp::SystemDefaultsQoS());
-    pubTeammateList = node_->create_publisher<swarm_msgs::ConnectedTeammateList>("/" + topic_name_prefix + "connected_teammate_list", rclcpp::SystemDefaultsQoS());
+    pubTeammateList = node_->create_publisher<swarm_msgs::msg::ConnectedTeammateList>("/" + topic_name_prefix + "connected_teammate_list", rclcpp::SystemDefaultsQoS());
     pubTeammateNum = node_->create_publisher<std_msgs::msg::Int8>("/" + topic_name_prefix + "connected_teammate_num", rclcpp::SystemDefaultsQoS());
-    pubTeammateIdTrajMatching = node_->create_publisher<swarm_msgs::ConnectedTeammateList>("/" + topic_name_prefix + "teammate_id_with_traj_matching", rclcpp::SystemDefaultsQoS());
+    pubTeammateIdTrajMatching = node_->create_publisher<swarm_msgs::msg::ConnectedTeammateList>("/" + topic_name_prefix + "teammate_id_with_traj_matching", rclcpp::SystemDefaultsQoS());
 
     for (int i = 0; i < MAX_UAV_NUM; ++i) {
         pubTeammateOdom[i] = node_->create_publisher<nav_msgs::msg::Odometry>("/" + topic_name_prefix + "teammate_odom/UAV" + SetString(i), rclcpp::SystemDefaultsQoS());
@@ -123,7 +123,7 @@ void Multi_UAV::BuildMatrixWithUpperTriangular(const VD(12) &vec, M3D &rot_cov, 
     pos_cov(2,2) = vec(11);
 }
 
-void Multi_UAV::QuadstateCbk(const swarm_msgs::QuadStatePub::ConstPtr &msg) {
+void Multi_UAV::QuadstateCbk(const swarm_msgs::msg::QuadStatePub::ConstPtr &msg) {
     //判断队友飞机id
     int id = msg->drone_id;
     if (id == drone_id)
@@ -217,7 +217,7 @@ void Multi_UAV::QuadstateCbk(const swarm_msgs::QuadStatePub::ConstPtr &msg) {
 }
 
 
-void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::GlobalExtrinsicStatus::ConstPtr &msg) {
+void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::ConstPtr &msg) {
     if (found_all_teammates || msg->drone_id == drone_id)
         return;
 
@@ -359,7 +359,7 @@ void Multi_UAV::PublishQuadstate(const V3D &unbiased_gyr, const double &lidar_en
     for (auto iter = teammates.begin(); iter != teammates.end(); ++iter) {
         //if observe teammate
         if (iter->second.is_observe_teammate) {
-            swarm_msgs::ObserveTeammate obs_teammate;
+            swarm_msgs::msg::ObserveTeammate obs_teammate;
             obs_teammate.is_observe = true;
             //drone id of observed teammate
             obs_teammate.teammate_id = iter->first;
@@ -385,7 +385,7 @@ void Multi_UAV::PublishGlobalExtrinsic(const double &lidar_end_time) {
 
     for (auto iter = teammates.begin(); iter != teammates.end(); ++iter) {
         //Publish Effective Global Extrinsic with other drones
-        swarm_msgs::GlobalExtrinsic global_extrinsic;
+        swarm_msgs::msg::GlobalExtrinsic global_extrinsic;
         global_extrinsic.teammate_id = iter->first;
         if (state.global_extrinsic_trans[iter->first].norm() < 0.001)
             continue;
@@ -756,7 +756,7 @@ void Multi_UAV::ClusterExtractPredictRegion(const double &lidar_end_time, const 
 
     if (pubPredictRegionInput.getNumSubscribers() > 0) {
         //publish cluster input in world frame
-        sensor_msgs::PointCloud2 cluster_input_msg;
+        sensor_msgs::msg::PointCloud2 cluster_input_msg;
         Matrix4d body_to_gravity = Matrix4d::Identity();
         body_to_gravity.block<3, 3>(0, 0) = rot_world_to_gravity * state.rot_end;
         body_to_gravity.block<3, 1>(0, 3) = rot_world_to_gravity * state.pos_end;
@@ -851,7 +851,7 @@ void Multi_UAV::ClusterExtractHighIntensity(const double &lidar_end_time, const 
 
     if (pubHighIntenInput.getNumSubscribers() > 0) {
         //publish cluster input in world frame
-        sensor_msgs::PointCloud2 cluster_input_msg;
+        sensor_msgs::msg::PointCloud2 cluster_input_msg;
         Matrix4d body_to_gravity = Matrix4d::Identity();
         body_to_gravity.block<3, 3>(0, 0) = rot_world_to_gravity * state.rot_end;
         body_to_gravity.block<3, 1>(0, 3) = rot_world_to_gravity * state.pos_end;
@@ -1247,11 +1247,11 @@ void Multi_UAV::UpdateTemporaryTracker(const double &lidar_end_time, const int &
 
 void Multi_UAV::VisualizeText(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const double &time, const int &id, const double &scale, const V3D &pos, const string &text, const V3D &color){
     //Publish Text
-    visualization_msgs::Marker vis_text;
+    visualization_msgs::msg::Marker vis_text;
     vis_text.header.stamp = stamp_from_sec(time);
     vis_text.header.frame_id = topic_name_prefix + "world";
-    vis_text.action = visualization_msgs::Marker::ADD;
-    vis_text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+    vis_text.action = visualization_msgs::msg::Marker::ADD;
+    vis_text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
     vis_text.id = id;
     vis_text.color.a = 1.0; // Don't forget to set the alpha!
     vis_text.color.r = color(0);
@@ -1274,13 +1274,13 @@ void Multi_UAV::VisualizeText(const rclcpp::Publisher<visualization_msgs::msg::M
 
 void Multi_UAV::VisualizeBoundingBox(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const double &time, const int &id, const V3D &color, const V3D &pos, const double &size){
     //Publish Bounding box
-    visualization_msgs::Marker line_strip;
+    visualization_msgs::msg::Marker line_strip;
     line_strip.header.stamp = stamp_from_sec(time);
     line_strip.header.frame_id = topic_name_prefix + "world";
-    line_strip.action = visualization_msgs::Marker::ADD;
+    line_strip.action = visualization_msgs::msg::Marker::ADD;
     line_strip.pose.orientation.w = 1.0;
     line_strip.id = id; //unique id, useful when multiple markers exist.
-    line_strip.type = visualization_msgs::Marker::LINE_STRIP; //marker type
+    line_strip.type = visualization_msgs::msg::Marker::LINE_STRIP; //marker type
     line_strip.scale.x = 0.1;
 
     line_strip.color.r = color.x();
@@ -1288,7 +1288,7 @@ void Multi_UAV::VisualizeBoundingBox(const rclcpp::Publisher<visualization_msgs:
     line_strip.color.b = color.z();
 
     line_strip.color.a = 1.0; //不透明度，设0则全透明
-    geometry_msgs::Point p[8];
+    geometry_msgs::msg::Point p[8];
     double length = size, width = size, hight = size;
     //vis_pos_world是目标物的坐标
     p[0].x = pos(0) - width;
@@ -1336,10 +1336,10 @@ void Multi_UAV::VisualizeBoundingBox(const rclcpp::Publisher<visualization_msgs:
 void Multi_UAV::VisualizeDeleteAllCluster(const double &time) {
     if (pubCluster.getNumSubscribers() < 1)
         return;
-    visualization_msgs::Marker vis_cluster_delete;
+    visualization_msgs::msg::Marker vis_cluster_delete;
     vis_cluster_delete.header.stamp = stamp_from_sec(time);
     vis_cluster_delete.header.frame_id = topic_name_prefix + "world";
-    vis_cluster_delete.action = visualization_msgs::Marker::DELETEALL;
+    vis_cluster_delete.action = visualization_msgs::msg::Marker::DELETEALL;
     pubCluster.publish(vis_cluster_delete);
 }
 
@@ -1382,7 +1382,7 @@ void Multi_UAV::PublishTeammateOdom(const double &lidar_end_time){
 }
 
 void Multi_UAV::PublishConnectedTeammateList(const double &lidar_end_time){
-    swarm_msgs::ConnectedTeammateList msg;
+    swarm_msgs::msg::ConnectedTeammateList msg;
     msg.header.stamp = stamp_from_sec(lidar_end_time);
     msg.drone_id = drone_id;
     msg.connected_teammate_id.clear();
@@ -1396,7 +1396,7 @@ void Multi_UAV::PublishConnectedTeammateList(const double &lidar_end_time){
     sort(msg.connected_teammate_id.begin(), msg.connected_teammate_id.end());
     pubTeammateList.publish(msg);
 
-    std_msgs::Int8 msg_int;
+    std_msgs::msg::Int8 msg_int;
     msg_int.data = -1;
     for (auto iter = teammates.begin(); iter != teammates.end(); ++iter) {
         double connect_interval = lidar_end_time - iter->second.last_connect_time;
@@ -1411,7 +1411,7 @@ void Multi_UAV::PublishConnectedTeammateList(const double &lidar_end_time){
     pubTeammateNum.publish(msg_int);
 
     //Pub Teammate List with Trajectory Matching
-    swarm_msgs::ConnectedTeammateList list;
+    swarm_msgs::msg::ConnectedTeammateList list;
     list.header.stamp = stamp_from_sec(lidar_end_time);
     list.drone_id = drone_id;
     list.connected_teammate_id.clear();
@@ -1449,11 +1449,11 @@ void Multi_UAV::VisualizeTeammateTracker(const double &lidar_end_time, const int
         //Publish Bounding box
         VisualizeBoundingBox(pubUAV, lidar_end_time, teammate_id + 100, vis_color, vis_pos_gravity, predict_region_radius - 0.1);
     } else {
-        visualization_msgs::Marker vis_uav_delete;
+        visualization_msgs::msg::Marker vis_uav_delete;
         vis_uav_delete.header.stamp = stamp_from_sec(lidar_end_time);
         vis_uav_delete.header.frame_id = topic_name_prefix + "world";
-        vis_uav_delete.type = visualization_msgs::Marker::DELETE;
-        vis_uav_delete.action = visualization_msgs::Marker::DELETE;
+        vis_uav_delete.type = visualization_msgs::msg::Marker::DELETE;
+        vis_uav_delete.action = visualization_msgs::msg::Marker::DELETE;
         vis_uav_delete.id = teammate_id;
         pubUAV.publish(vis_uav_delete);
         vis_uav_delete.id = teammate_id + 100;
@@ -1500,7 +1500,7 @@ void Multi_UAV::VisualizeTeammateTrajectory(const rclcpp::Publisher<visualizatio
     }
 
     V3D last_pos, cur_pos;
-    visualization_msgs::MarkerArray mrkarr;
+    visualization_msgs::msg::MarkerArray mrkarr;
     mrkarr.markers.clear();
 
 //    traj.push_back(Vector4d(position.x(), position.y(), position.z(), has_observation));
@@ -1510,15 +1510,15 @@ void Multi_UAV::VisualizeTeammateTrajectory(const rclcpp::Publisher<visualizatio
     int cnt = 0;
     for (auto cur_index: traj) {
         V3D cur_pos = cur_index.head(3);
-        visualization_msgs::Marker line_list;
+        visualization_msgs::msg::Marker line_list;
         // publish lines
         line_list.header.frame_id = topic_name_prefix + "world";
         line_list.header.stamp = stamp_from_sec(timestamp);
         line_list.ns = namespace_;
         line_list.id = cnt++;
-        line_list.action = visualization_msgs::Marker::ADD;
+        line_list.action = visualization_msgs::msg::Marker::ADD;
         line_list.pose.orientation.w = 1.0;
-        line_list.type = visualization_msgs::Marker::ARROW;
+        line_list.type = visualization_msgs::msg::Marker::ARROW;
         // LINE_STRIP/LINE_LIST markers use only the x component of scale, for the line width
         line_list.scale.x = mkr_size;
         line_list.scale.y = 0.0000001;
@@ -1534,7 +1534,7 @@ void Multi_UAV::VisualizeTeammateTrajectory(const rclcpp::Publisher<visualizatio
         }
         line_list.color.a = 1;
         // Create the vertices for the points and lines
-        geometry_msgs::Point p;
+        geometry_msgs::msg::Point p;
         p.x = last_pos.x();
         p.y = last_pos.y();
         p.z = last_pos.z();
@@ -1575,7 +1575,7 @@ void Multi_UAV::VisualizeTeammateTrajectorySphere(const rclcpp::Publisher<visual
     }
 
     V3D last_pos, cur_pos;
-    visualization_msgs::MarkerArray mrkarr;
+    visualization_msgs::msg::MarkerArray mrkarr;
     mrkarr.markers.clear();
 
 //    traj.push_back(Vector4d(position.x(), position.y(), position.z(), has_observation));
@@ -1585,15 +1585,15 @@ void Multi_UAV::VisualizeTeammateTrajectorySphere(const rclcpp::Publisher<visual
     int cnt = 0;
     for (auto cur_index: traj) {
         V3D cur_pos = cur_index.head(3);
-        visualization_msgs::Marker line_list;
+        visualization_msgs::msg::Marker line_list;
         // publish lines
         line_list.header.frame_id = topic_name_prefix + "world";
         line_list.header.stamp = stamp_from_sec(timestamp);
         line_list.ns = namespace_;
         line_list.id = cnt++;
-        line_list.action = visualization_msgs::Marker::ADD;
+        line_list.action = visualization_msgs::msg::Marker::ADD;
         line_list.pose.orientation.w = 1.0;
-        line_list.type = visualization_msgs::Marker::SPHERE;
+        line_list.type = visualization_msgs::msg::Marker::SPHERE;
         // LINE_STRIP/LINE_LIST markers use only the x component of scale, for the line width
         line_list.scale.x = mkr_size;
         line_list.scale.y = mkr_size;
@@ -1645,15 +1645,15 @@ void Multi_UAV::VisualizeMeshUAV(const double &lidar_end_time, const int &teamma
 
         vis_color = V3D(1.0, 1.0, 1.0);
         //Publish Mesh UAV
-        visualization_msgs::Marker meshROS;
+        visualization_msgs::msg::Marker meshROS;
 
         // Mesh model
         meshROS.header.frame_id = topic_name_prefix + "world";
         meshROS.header.stamp = stamp_from_sec(lidar_end_time);
         meshROS.ns = "mesh";
         meshROS.id = teammate_id + 100;
-        meshROS.type = visualization_msgs::Marker::MESH_RESOURCE;
-        meshROS.action = visualization_msgs::Marker::ADD;
+        meshROS.type = visualization_msgs::msg::Marker::MESH_RESOURCE;
+        meshROS.action = visualization_msgs::msg::Marker::ADD;
         meshROS.pose.position.x = vis_pos_gravity.x();
         meshROS.pose.position.y = vis_pos_gravity.y();
         meshROS.pose.position.z = vis_pos_gravity.z();
@@ -1678,11 +1678,11 @@ void Multi_UAV::VisualizeMeshUAV(const double &lidar_end_time, const int &teamma
 //                                    vis_pos_gravity,"Teammate" + SetString(teammate_id), 0.15, lidar_end_time, teammate_id, has_observation);
 
     } else {
-        visualization_msgs::Marker vis_uav_delete;
+        visualization_msgs::msg::Marker vis_uav_delete;
         vis_uav_delete.header.stamp = stamp_from_sec(lidar_end_time);
         vis_uav_delete.header.frame_id = topic_name_prefix + "world";
-        vis_uav_delete.type = visualization_msgs::Marker::DELETE;
-        vis_uav_delete.action = visualization_msgs::Marker::DELETE;
+        vis_uav_delete.type = visualization_msgs::msg::Marker::DELETE;
+        vis_uav_delete.action = visualization_msgs::msg::Marker::DELETE;
         vis_uav_delete.id = teammate_id;
         pubMeshUAV.publish(vis_uav_delete);
         vis_uav_delete.ns = "mesh";
@@ -1703,12 +1703,12 @@ void Multi_UAV::VisualizeTempTracker(const double &lidar_end_time) {
 void Multi_UAV::VisualizeTemporaryPredictRegion(const double &lidar_end_time) {
     if(pubTempTracker.getNumSubscribers() < 1)
         return;
-    visualization_msgs::Marker sphere;
+    visualization_msgs::msg::Marker sphere;
     sphere.header.stamp = stamp_from_sec(lidar_end_time);
     sphere.header.frame_id = topic_name_prefix + "world";
-    sphere.action = visualization_msgs::Marker::ADD;
+    sphere.action = visualization_msgs::msg::Marker::ADD;
     sphere.pose.orientation.w = 1.0;
-    sphere.type = visualization_msgs::Marker::SPHERE; //marker type
+    sphere.type = visualization_msgs::msg::Marker::SPHERE; //marker type
     sphere.scale.x = temp_predict_region_radius * 2; //直径
     sphere.scale.y = temp_predict_region_radius * 2;
     sphere.scale.z = temp_predict_region_radius * 2;
@@ -1729,11 +1729,11 @@ void Multi_UAV::VisualizeTemporaryPredictRegion(const double &lidar_end_time) {
 void Multi_UAV::VisualizeTempTrackerDelete(const double &lidar_end_time, const int &index) {
     if(pubTempTracker.getNumSubscribers() < 1)
         return;
-    visualization_msgs::Marker vis_uav_delete;
+    visualization_msgs::msg::msg::Marker vis_uav_delete;
     vis_uav_delete.header.stamp = stamp_from_sec(lidar_end_time);
     vis_uav_delete.header.frame_id = topic_name_prefix + "world";
-    vis_uav_delete.type = visualization_msgs::Marker::DELETE;
-    vis_uav_delete.action = visualization_msgs::Marker::DELETE;
+    vis_uav_delete.type = visualization_msgs::msg::Marker::DELETE;
+    vis_uav_delete.action = visualization_msgs::msg::Marker::DELETE;
     vis_uav_delete.id = temp_tracker[index].id;
     pubTempTracker.publish(vis_uav_delete);
     vis_uav_delete.id = temp_tracker[index].id + 100;
@@ -1759,12 +1759,12 @@ void Multi_UAV::VisualizePredictRegion(const double &lidar_end_time, const int &
 
     auto iter = teammate_tracker.find(id);
     if (iter != teammate_tracker.end()) {
-        visualization_msgs::Marker sphere;
+        visualization_msgs::msg::Marker sphere;
         sphere.header.stamp = stamp_from_sec(lidar_end_time);
         sphere.header.frame_id = topic_name_prefix + "world";
-        sphere.action = visualization_msgs::Marker::ADD;
+        sphere.action = visualization_msgs::msg::Marker::ADD;
         sphere.pose.orientation.w = 1.0;
-        sphere.type = visualization_msgs::Marker::SPHERE; //marker type
+        sphere.type = visualization_msgs::msg::Marker::SPHERE; //marker type
         sphere.scale.x = predict_region_radius * 2; //直径
         sphere.scale.y = predict_region_radius * 2;
         sphere.scale.z = predict_region_radius * 2;
@@ -1788,30 +1788,30 @@ void Multi_UAV::VisualizePredictRegion(const double &lidar_end_time, const int &
         sphere.id = iter->first;
         pubPredictRegion.publish(sphere);
     }else{
-        visualization_msgs::Marker vis_uav_delete;
+        visualization_msgs::msg::Marker vis_uav_delete;
         vis_uav_delete.header.stamp = stamp_from_sec(lidar_end_time);
         vis_uav_delete.header.frame_id = topic_name_prefix + "world";
-        vis_uav_delete.type = visualization_msgs::Marker::DELETE;
-        vis_uav_delete.action = visualization_msgs::Marker::DELETE;
+        vis_uav_delete.type = visualization_msgs::msg::Marker::DELETE;
+        vis_uav_delete.action = visualization_msgs::msg::Marker::DELETE;
         vis_uav_delete.id = id;
         pubPredictRegion.publish(vis_uav_delete);
     }
 }
 
 void Multi_UAV::VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub_rect, const double &lidar_end_time, const int &rect_id, const V3D &position, const V3D rect_size) {
-    visualization_msgs::Marker line_strip;
+    visualization_msgs::msg::Marker line_strip;
     line_strip.header.stamp = stamp_from_sec(lidar_end_time);
     line_strip.header.frame_id = topic_name_prefix + "world";
-    line_strip.action = visualization_msgs::Marker::ADD;
+    line_strip.action = visualization_msgs::msg::Marker::ADD;
     line_strip.pose.orientation.w = 1.0;
     line_strip.id = rect_id;
-    line_strip.type = visualization_msgs::Marker::LINE_STRIP;
+    line_strip.type = visualization_msgs::msg::Marker::LINE_STRIP;
     line_strip.scale.x = 0.1;
     line_strip.color.r = 1.0;
     line_strip.color.g = 1.0;
     line_strip.color.b = 1.0;
     line_strip.color.a = 1.0;
-    geometry_msgs::Point p[8];
+    geometry_msgs::msg::Point p[8];
     double length = rect_size.y()/2, width = rect_size.x()/2, hight =
             rect_size.z()/2;
     //vis_pos_world是目标物的坐标

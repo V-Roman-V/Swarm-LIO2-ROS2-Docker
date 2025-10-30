@@ -12,6 +12,7 @@
 #include <color.h>
 #include <boost/filesystem.hpp>
 #include "scope_timer.hpp"
+#include <deque>
 
 using namespace std;
 using namespace Eigen;

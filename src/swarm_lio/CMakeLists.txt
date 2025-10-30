@@ -51,6 +51,7 @@ find_package(GTSAM REQUIRED)
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(OpenMP REQUIRED)
 find_path(MATPLOTLIB_CPP_INCLUDE_DIRS "matplotlibcpp.h")
+find_package(swarm_msgs REQUIRED)
 
 include_directories(
   ${EIGEN3_INCLUDE_DIR}
@@ -60,10 +61,10 @@ include_directories(
   include
 )
 
-rosidl_generate_interfaces(${PROJECT_NAME}
+rosidl_generate_interfaces(swarm_lio_interfaces
   "msg/Pose6D.msg"
   "msg/States.msg"
-  DEPENDENCIES geometry_msgs
+  DEPENDENCIES geometry_msgs std_msgs
 )
 
 add_executable(swarm_lio
@@ -95,14 +96,20 @@ target_link_libraries(swarm_lio
   OpenMP::OpenMP_CXX
 )
 
-target_include_directories(swarm_lio PRIVATE ${Python3_INCLUDE_DIRS})
+target_include_directories(swarm_lio PRIVATE
+  ${Python3_INCLUDE_DIRS}
+  ${swarm_msgs_INCLUDE_DIRS}
+  ${ament_cmake_INCLUDE_DIRS}
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/../../swarm_msgs/include>
+  $<INSTALL_INTERFACE:include>
+)
 
 install(TARGETS swarm_lio
   DESTINATION lib/${PROJECT_NAME}
 )
 
 rosidl_target_interfaces(swarm_lio
-  ${PROJECT_NAME}
+  swarm_lio_interfaces
   "rosidl_typesupport_cpp"
 )
 

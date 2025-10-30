@@ -333,7 +333,7 @@ void Preprocess::oust_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPt
 
 #define MAX_LINE_NUM 64
 
-void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg) {
+void Preprocess::velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
     pl_surf.clear();
     pl_corn.clear();
     pl_full.clear();
