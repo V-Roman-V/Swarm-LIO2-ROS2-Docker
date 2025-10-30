@@ -94,7 +94,7 @@ shared_ptr<ImuProcess> p_imu;
 string topic_name_prefix;
 int frame_num_in_sliding_window;
 double text_scale, mesh_scale;
-int degeneration_thresh;
+double degeneration_thresh;
 
 //IMU propagation Parameters
 StatesGroup imu_propagate, latest_ekf_state;
@@ -1244,7 +1244,7 @@ int main(int argc, char **argv) {
     actual_uav_num             = node->declare_parameter<int>("multiuav/actual_uav_num", 5);
     frame_num_in_sliding_window= node->declare_parameter<int>("multiuav/frame_num_in_sliding_window", original_frequency/10);
     mutual_observe_noise_      = node->declare_parameter<double>("multiuav/mutual_observe_noise", 0.001);
-    degeneration_thresh        = node->declare_parameter<int>("multiuav/degeneration_thresh", 30);
+    degeneration_thresh        = node->declare_parameter<double>("multiuav/degeneration_thresh", 30.0);
     imu_prop_enable            = node->declare_parameter<bool>("imu_propagate/enable", false);
     imu_prop_topic             = node->declare_parameter<string>("imu_propagate/topic", "lidar_slam/imu_propagate");
     filter_acc_en              = node->declare_parameter<bool>("imu_propagate/filter_acc_en", false);

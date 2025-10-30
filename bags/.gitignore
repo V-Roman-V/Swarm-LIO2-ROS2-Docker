@@ -1,0 +1,6 @@
+# Ignore all bag files
+**
+
+# except git files
+!.gitignore
+!.gitkeep

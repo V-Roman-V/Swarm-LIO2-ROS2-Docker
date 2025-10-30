@@ -117,4 +117,24 @@ ament_export_dependencies(
   geometry_msgs nav_msgs sensor_msgs std_msgs visualization_msgs tf2 tf2_ros pcl_ros pcl_conversions
 )
 
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY rviz_cfg
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY mesh
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()
