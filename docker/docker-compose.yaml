@@ -21,11 +21,11 @@ services:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - DEBIAN_FRONTEND=noninteractive
       # Use NVIDIA GPU for fast rviz visualization
-      # - NVIDIA_VISIBLE_DEVICES=all
-      # - NVIDIA_DRIVER_CAPABILITIES=all
-      # - __NV_PRIME_RENDER_OFFLOAD=1
-      # - __GLX_VENDOR_LIBRARY_NAME=nvidia
-      # - __VK_LAYER_NV_optimus=NVIDIA_only
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - __NV_PRIME_RENDER_OFFLOAD=1
+      - __GLX_VENDOR_LIBRARY_NAME=nvidia
+      - __VK_LAYER_NV_optimus=NVIDIA_only
     network_mode: host
     tty: true
     stdin_open: true

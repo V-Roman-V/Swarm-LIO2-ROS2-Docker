@@ -25,7 +25,7 @@ def generate_launch_description():
     ]
     rviz_cfg = os.path.join(
         get_package_share_directory('swarm_lio'),
-        'rviz_cfg/fastlio_rviz.rviz')
+        'rviz_cfg/ros2.rviz')
 
     ld.add_action(
         Node(

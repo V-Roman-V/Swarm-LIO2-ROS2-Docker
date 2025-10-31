@@ -1344,11 +1344,11 @@ int main(int argc, char **argv) {
             imu_topic, rclcpp::SensorDataQoS(), imu_cbk);
 
     auto pubCloudRegistered = node->create_publisher<sensor_msgs::msg::PointCloud2>(
-            "/" + topic_name_prefix + "cloud_registered", rclcpp::SensorDataQoS());
+            "/" + topic_name_prefix + "cloud_registered", rclcpp::SystemDefaultsQoS());
     auto pubCloudRegisteredSparse = node->create_publisher<sensor_msgs::msg::PointCloud2>(
-            "/" + topic_name_prefix + "cloud_registered_sparse", rclcpp::SensorDataQoS());
+            "/" + topic_name_prefix + "cloud_registered_sparse", rclcpp::SystemDefaultsQoS());
     auto pubCloudRegisteredBody = node->create_publisher<sensor_msgs::msg::PointCloud2>(
-            "/" + topic_name_prefix + "cloud_registered_body", rclcpp::SensorDataQoS());
+            "/" + topic_name_prefix + "cloud_registered_body", rclcpp::SystemDefaultsQoS());
     pub_map = node->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/" + topic_name_prefix + "downsampled_map", rclcpp::SystemDefaultsQoS());
     auto pubLidarSlamOdom = node->create_publisher<nav_msgs::msg::Odometry>(

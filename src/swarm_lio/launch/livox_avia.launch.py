@@ -6,7 +6,7 @@ import os
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('swarm_lio')
-    rviz_file = os.path.join(pkg_share, 'rviz_cfg/avia.rviz')
+    rviz_file = os.path.join(pkg_share, 'rviz_cfg/ros2.rviz')
 
     params_file = os.path.join(pkg_share, 'config/avia.yaml')
     params = [
