@@ -1,5 +1,8 @@
 # Swarm-LIO2-ROS2-Docker
 
+> This branch contains the **ROS 2 (Humble)** Dockerized version of Swarm-LIO2.  
+> The ROS 1 port is developed in a [`docker-ros1`](https://github.com/V-Roman-V/Swarm-LIO2-ROS2-Docker/tree/docker-ros1) branch.
+
 <div align="center">
     <h2>Swarm-LIO2-ROS2-Docker: ROS 2 and Docker Port of Swarm-LIO2</h2>
     <strong>Open-source community fork of HKU-MARS Swarm-LIO2</strong>
@@ -32,10 +35,8 @@ developed by the **HKU MARS Lab** and published in *IEEE Transactions on Robotic
 |------------|:------:|
 | Repository setup | ✅ |
 | ROS 2 package structure | ✅ |
-| Core node porting (lio_sam, swarm_lio) | ⏳ Planned |
-| udp_bridge ROS 2 port | ✅ |
-| swarm_msgs ROS 2 port | ✅ |
-| Dockerfile (base + runtime images) | 🚧 In progress |
+| Dockerfile (base + runtime images) | ✅ |
+| swarm_msgs/udp_bridge/swarm_lio ROS 2 port | ✅ |
 | Simulation / example data testing | ⏳ Planned |
 
 ---
@@ -44,7 +45,7 @@ developed by the **HKU MARS Lab** and published in *IEEE Transactions on Robotic
 
 - **ROS 2 Humble**
 - **Ubuntu 22.04**
-- **GTSAM** (latest stable)
+- **GTSAM 4.2**
 - **PCL ≥ 1.12**
 - **Eigen ≥ 3.4**
 - **Docker + docker-compose**
@@ -80,15 +81,17 @@ Swarm-LIO2-ROS2-Docker/
 - [x] Create ROS 2 package structure
 - [x] Update message definitions to ROS 2 `.msg` types (package: `swarm_msgs`)  
 - [x] Port `udp_bridge` package to ROS 2 (`rclcpp`, timers, pubs/subs)  
-- [ ] Port core Swarm-LIO2 nodes (C++)  
-- [ ] Replace `ros::Publisher/Subscriber` with `rclcpp` equivalents in core nodes  
+- [x] Port core Swarm-LIO2 nodes (C++)  
+- [x] Replace `ros::Publisher/Subscriber` with `rclcpp` equivalents in core nodes  
 
 #### Phase 2: Build System & Docker
 - [x] Create Dockerfiles for build/runtime (Humble-based image builds successfully)  
-- [ ] Add multi-stage build support (builder → runtime image)  
+- [x] Add multi-stage docker build  
 
 #### Phase 3: Launch & Testing
 - [x] Write ROS 2 launch files (Python) for `udp_bridge`  
+- [x] Write ROS 2 rviz configs and launch files for `swarm_lio`  
+- [ ] Run tests for ROS 2 packages (planned)  
 - [ ] Publish example bags and setup guide  
 
 #### Phase 4: Documentation
@@ -106,6 +109,11 @@ Original paper:
 Videos:  
 - [YouTube Demo](https://youtu.be/Q7cJ9iRhlrY)  
 - [Bilibili Demo](https://www.bilibili.com/video/BV1vTsMeqEQm)
+
+---
+### Notes
+
+- Removed `Livox_driver` and Livox SDK from packages and code. Pointclouds are processed using **Pointcloud2** ros2 messages.
 
 ---
 
