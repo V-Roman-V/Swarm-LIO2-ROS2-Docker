@@ -9,6 +9,13 @@ email: zhufc@connect.hku.hk
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
+template <typename PointT>
+inline void make_pcl_unorganized(pcl::PointCloud<PointT>& c) {
+    c.width  = static_cast<uint32_t>(c.size());
+    c.height = 1;
+    c.is_dense = true;
+}
+
 static inline builtin_interfaces::msg::Time stamp_from_sec(double sec) {
     builtin_interfaces::msg::Time t;
     int64_t nsec = static_cast<int64_t>(sec * 1e9);
@@ -765,7 +772,8 @@ void Multi_UAV::ClusterExtractPredictRegion(const double &lidar_end_time, const 
         body_to_gravity.block<3, 3>(0, 0) = rot_world_to_gravity * state.rot_end;
         body_to_gravity.block<3, 1>(0, 3) = rot_world_to_gravity * state.pos_end;
         pcl::PointCloud<pcl::PointXYZ>::Ptr all_predict_region_cloud_world(new pcl::PointCloud<pcl::PointXYZ>());
-        pcl::transformPointCloud(all_predict_region_cloud, *all_predict_region_cloud_world, body_to_gravity);
+        make_pcl_unorganized(all_predict_region_cloud);
+        pcl::transformPointCloud(all_predict_region_cloud, *all_predict_region_cloud_world, body_to_gravity, /*copy_all_fields=*/false);
         pcl::toROSMsg(*all_predict_region_cloud_world, cluster_input_msg);
         cluster_input_msg.header.stamp = stamp_from_sec(lidar_end_time);
         cluster_input_msg.header.frame_id = topic_name_prefix + "world";
@@ -859,7 +867,8 @@ void Multi_UAV::ClusterExtractHighIntensity(const double &lidar_end_time, const 
         Matrix4d body_to_gravity = Matrix4d::Identity();
         body_to_gravity.block<3, 3>(0, 0) = rot_world_to_gravity * state.rot_end;
         body_to_gravity.block<3, 1>(0, 3) = rot_world_to_gravity * state.pos_end;
-        pcl::transformPointCloud(*cluster_cloud, *cluster_cloud_world, body_to_gravity);
+        make_pcl_unorganized(*cluster_cloud);
+        pcl::transformPointCloud(*cluster_cloud, *cluster_cloud_world, body_to_gravity, /*copy_all_fields=*/false);
         pcl::toROSMsg(*cluster_cloud_world, cluster_input_msg);
         cluster_input_msg.header.stamp = stamp_from_sec(lidar_end_time);
         cluster_input_msg.header.frame_id = topic_name_prefix + "world";

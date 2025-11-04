@@ -55,7 +55,7 @@ int iterCount = 0, feats_down_size = 0, NUM_MAX_ITERATIONS = 0, \
 
 double gyr_cov = 0.1, acc_cov = 0.1, grav_cov = 0.0001, b_gyr_cov = 0.0001, b_acc_cov = 0.0001;
 double last_timestamp_lidar = 0, last_timestamp_imu = 0.0;
-double filter_size_corner_min = 0, filter_size_surf_min = 0, filter_size_map_min = 0;
+double filter_size_corner_min = 0.5, filter_size_surf_min = 0.5, filter_size_map_min = 0.5;
 double cube_len = 0, total_distance = 0, lidar_end_time = 0, first_lidar_time = - 1.0;
 rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pubDrone;
 
@@ -161,6 +161,12 @@ geometry_msgs::msg::Quaternion geoQuat;
 geometry_msgs::msg::PoseStamped msg_body_pose;
 shared_ptr<Preprocess> p_pre(new Preprocess());
 
+inline void make_pcl_unorganized(PointCloudXYZI &c) {
+    c.width  = static_cast<uint32_t>(c.points.size());
+    c.height = 1;
+    c.is_dense = true;
+}
+
 Matrix4d T_inverse(const Matrix4d T) {
     Matrix4d T_out = Matrix4d::Identity();
     T_out.col(3).head(3) = -T.block<3, 3>(0, 0).transpose() * T.col(3).head(3);
@@ -193,6 +199,7 @@ void prop_imu_once(StatesGroup & imu_prop_state,
                    V3D acc_avr,
                    V3D angvel_avr) {
     double mean_acc_norm = p_imu->IMU_mean_acc_norm;
+    assert (mean_acc_norm > 1e-6), "IMU mean acc norm is too small!";
     acc_avr = acc_avr * G_m_s2 / mean_acc_norm - imu_prop_state.bias_a;
     angvel_avr -= imu_prop_state.bias_g;
     unbiased_gyr = angvel_avr;
@@ -704,11 +711,13 @@ void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>:
         lidar_to_world.block<3, 3>(0, 0) = state.rot_end * offset_R_L_I;
         lidar_to_world.block<3, 1>(0, 3) = state.rot_end * offset_T_L_I + state.pos_end;
         Matrix4d lidar_to_gravity = G_T_I0 * lidar_to_world;
-        pcl::transformPointCloud(*laserCloudFullRes, *laserCloudWorld, lidar_to_gravity);
+        make_pcl_unorganized(*laserCloudFullRes);        
+        pcl::transformPointCloud(*laserCloudFullRes, *laserCloudWorld, lidar_to_gravity, /*copy_all_fields=*/false);
 
 
         //Convert all original points into gravity-aligned world frame
-        pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorldSparse, lidar_to_gravity);
+        make_pcl_unorganized(*feats_down_lidar);
+        pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorldSparse, lidar_to_gravity, /*copy_all_fields=*/false);
 
 
         sensor_msgs::msg::PointCloud2 laserCloudmsg;
@@ -737,7 +746,8 @@ void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>:
         lidar_to_world.block<3, 3>(0, 0) = state.rot_end * offset_R_L_I;
         lidar_to_world.block<3, 1>(0, 3) = state.rot_end * offset_T_L_I + state.pos_end;
         Matrix4d body_to_gravity = G_T_I0 * lidar_to_world;
-        pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorld, body_to_gravity);
+        make_pcl_unorganized(*feats_down_lidar);
+        pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorld, body_to_gravity, /*copy_all_fields=*/false);
 
         *pcl_wait_save += *laserCloudWorld;
         static int scan_wait_num = 0;
@@ -758,7 +768,8 @@ void publish_frame_body(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::
     Matrix4d lidar_to_body = Matrix4d::Identity();
     lidar_to_body.block<3,3>(0,0) = offset_R_L_I;
     lidar_to_body.block<3,1>(0,3) = offset_T_L_I;
-    pcl::transformPointCloud(*feats_undistort_lidar, *laserCloudFullResBody, lidar_to_body);
+    make_pcl_unorganized(*feats_undistort_lidar);
+    pcl::transformPointCloud(*feats_undistort_lidar, *laserCloudFullResBody, lidar_to_body, /*copy_all_fields=*/false);
     sensor_msgs::msg::PointCloud2 laserCloudmsg;
     pcl::toROSMsg(*laserCloudFullResBody, laserCloudmsg);
     laserCloudmsg.header.stamp = stamp_from_sec(lidar_end_time);
@@ -791,11 +802,19 @@ void set_twist(T &out) {
 }
 
 void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubLidarSlamOdom) {
+
+    double qn = std::sqrt(geoQuat.w*geoQuat.w + geoQuat.x*geoQuat.x + geoQuat.y*geoQuat.y + geoQuat.z*geoQuat.z);
+    if (!(std::isfinite(qn)) || qn < 1e-6) return;  // avoid TF_DENORMALIZED_QUATERNION
+
     odomAftMapped.header.frame_id = topic_name_prefix + "world";
     odomAftMapped.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
 
 
     odomAftMapped.header.stamp = stamp_from_sec(lidar_end_time);
+
+    // normalize before use
+    geoQuat.w /= qn; geoQuat.x /= qn; geoQuat.y /= qn; geoQuat.z /= qn;
+
     set_posestamp(odomAftMapped.pose.pose);
     set_twist(odomAftMapped.twist.twist);
 
@@ -850,6 +869,7 @@ void point_downsample(PointCloudXYZI &orig_pcl, PointCloudXYZI &pcl_out) {
         }
     } else
         pcl_out = orig_pcl;
+    make_pcl_unorganized(pcl_out);
 }
 
 void point_filter_teammate(const PointCloudXYZI &orig_pcl, PointCloudXYZI &pcl_out, const shared_ptr<Multi_UAV> &swarm_in) {
@@ -881,6 +901,7 @@ void point_filter_teammate(const PointCloudXYZI &orig_pcl, PointCloudXYZI &pcl_o
             pcl_out.push_back(orig_pcl.points[i]);
         }
     }
+    make_pcl_unorganized(pcl_out);
 }
 
 
@@ -999,6 +1020,8 @@ void point_downsample_filt_rectangle(PointCloudXYZI &orig_pcl, PointCloudXYZI &p
         VisualizeRectangle(pub_rect, G_T_I0.block<3,3>(0,0) * iter->second.get_state_pos(),
                             rect_size, iter->first + 100);
     }
+    make_pcl_unorganized(orig_pcl);
+    make_pcl_unorganized(pcl_out);
 }
 
 
@@ -1032,19 +1055,30 @@ void gt_pos_cbk_real(const geometry_msgs::msg::PoseStamped::ConstSharedPtr msg) 
 void TimerCbk(){
     if(LIO_pose.empty())
         return;
-    while ((ground_truth[1](6) <= LIO_pose.front()(3)) && ground_truth.size() > 2) {
+
+    while (ground_truth.size() > 2 && (ground_truth[1](6) <= LIO_pose.front()(3))) {
         mtx_buffer_gt.lock();
         ground_truth.pop_front();
         mtx_buffer_gt.unlock();
     }
+
+    if (ground_truth.size() < 2) return;
     if(ground_truth[0](6) <= LIO_pose.front()(3) && ground_truth[1](6) > LIO_pose.front()(3)){
         //Linear Interpolate
         double DT = ground_truth[1](6) - ground_truth[0](6);
+        if (DT <= 0) {
+            RCLCPP_WARN(rclcpp::get_logger("laserMapping"), "GT interp: DT==0; skip");
+            LIO_pose.pop_front();
+            return;
+        }
         double dt = LIO_pose.front()(3) - ground_truth[0](6);
         double s = dt / DT;
         V3D gt_rot_euler = s * ground_truth[1].block<3, 1>(0, 0) + (1 - s) * ground_truth[0].block<3, 1>(0, 0);
-        V3D gt_position = s * ground_truth[1].block<3, 1>(3, 0) + (1 - s) * ground_truth[0].block<3, 1>(3, 0);
-        fout_pose << setiosflags(ios::fixed) << setprecision(12)  << LIO_pose.front().block<3,1>(0,0).transpose() << " " << gt_position.transpose() << " " << LIO_pose.front()(3) << endl;
+        V3D gt_position  = s * ground_truth[1].block<3, 1>(3, 0) + (1 - s) * ground_truth[0].block<3, 1>(3, 0);
+        fout_pose << setiosflags(ios::fixed) << setprecision(12)
+                  << LIO_pose.front().block<3,1>(0,0).transpose() << " "
+                  << gt_position.transpose() << " "
+                  << LIO_pose.front()(3) << std::endl;
         LIO_pose.pop_front();
     }
 }
@@ -1183,6 +1217,9 @@ void VisualizeTrajectorySphere(const rclcpp::Publisher<visualization_msgs::msg::
 }
 
 int main(int argc, char **argv) {
+    // initialize geoQuat
+    geoQuat.w = 1.0; geoQuat.x = geoQuat.y = geoQuat.z = 0.0;
+    
     rclcpp::init(argc, argv);
     auto node = rclcpp::Node::make_shared("laserMapping");
     p_imu.reset(new ImuProcess());
@@ -1504,7 +1541,8 @@ int main(int argc, char **argv) {
             Matrix4d lidar_to_world = Matrix4d::Identity();
             lidar_to_world.block<3, 3>(0, 0) = state_propagat.rot_end * offset_R_L_I;
             lidar_to_world.block<3, 1>(0, 3) = state_propagat.rot_end * offset_T_L_I + state_propagat.pos_end;
-            pcl::transformPointCloud(*feats_undistort_orig_lidar, *feats_world_temp, lidar_to_world);
+            make_pcl_unorganized(*feats_undistort_orig_lidar);
+            pcl::transformPointCloud(*feats_undistort_orig_lidar, *feats_world_temp, lidar_to_world, /*copy_all_fields=*/false);
             feats_world_sliding_window.push_back(feats_world_temp);
 
             PointCloudXYZI::Ptr feats_all_in_window(new PointCloudXYZI());
@@ -1515,7 +1553,8 @@ int main(int argc, char **argv) {
             Matrix4d world_to_body = Matrix4d::Identity();
             world_to_body.block<3, 3>(0, 0) = state_propagat.rot_end.transpose();
             world_to_body.block<3, 1>(0, 3) = - state_propagat.rot_end.transpose() * state_propagat.pos_end;
-            pcl::transformPointCloud(*feats_all_in_window, *feats_merged_body, world_to_body);
+            make_pcl_unorganized(*feats_all_in_window);
+            pcl::transformPointCloud(*feats_all_in_window, *feats_merged_body, world_to_body, /*copy_all_fields=*/false);
 
 
             //Predict Temporary Tracker
@@ -1630,7 +1669,8 @@ int main(int argc, char **argv) {
                 if (feats_down_size > 5) {
                     ikdtree.set_downsample_param(filter_size_map_min);
                     feats_down_world->resize(feats_down_size);
-                    pcl::transformPointCloud(*feats_undistort_lidar, *feats_down_world, lidar_to_world);
+                    make_pcl_unorganized(*feats_undistort_lidar);
+                    pcl::transformPointCloud(*feats_undistort_lidar, *feats_down_world, lidar_to_world, /*copy_all_fields=*/false);
                     ikdtree.Build(feats_down_world->points);
                 }
                 continue;
@@ -1695,6 +1735,8 @@ int main(int argc, char **argv) {
             for (iterCount = 0; iterCount < NUM_MAX_ITERATIONS; iterCount++) {
                 laserCloudOri->clear();
                 corr_normvect->clear();
+                laserCloudOri->resize(feats_down_size);
+                corr_normvect->resize(feats_down_size);
 
                 /** closest surface search and residual computation **/
         #ifdef MP_EN
