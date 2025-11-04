@@ -52,6 +52,7 @@ find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(OpenMP REQUIRED)
 find_path(MATPLOTLIB_CPP_INCLUDE_DIRS "matplotlibcpp.h")
 find_package(swarm_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 include_directories(
   ${EIGEN3_INCLUDE_DIR}
