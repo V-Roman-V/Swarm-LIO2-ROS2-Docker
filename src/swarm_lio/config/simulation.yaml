@@ -29,7 +29,7 @@ ros__parameters:
       filter_acc_en: false
 
   preprocess:
-      lidar_type: 1
+      lidar_type: 6
       feature_extract_en: false
       scan_line: 6
       blind: 0.2
@@ -37,9 +37,9 @@ ros__parameters:
   calibration:
       cut_frame_en: false
       cut_frame_num: 1
-      accumulate_frame_en: false
+      accumulate_frame_en: true
       original_frequency: 10 # hz
-      gravity_align_enable: false
+      gravity_align_enable: true
       gravity_align_time: 10.0 # seconds
       PX4_R_I: [ 0.0, 0.0, 0.0 ] # degree
       PX4_p_I: [ 0.0, 0.0, 0.0 ] # meter
@@ -65,7 +65,7 @@ ros__parameters:
   publish:
       path_en:  true
       scan_publish_en:  true       # false: close all the point cloud output
-      dense_publish_en: false       # false: low down the points number in a global-frame point clouds scan.
+      dense_publish_en: true       # false: low down the points number in a global-frame point clouds scan.
       scan_bodyframe_pub_en: false  # true: output the point cloud scans in IMU body frame
 
   pcd_save:
