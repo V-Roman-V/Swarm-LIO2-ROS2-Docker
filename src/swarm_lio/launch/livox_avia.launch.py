@@ -31,7 +31,7 @@ def generate_launch_description():
                 executable='rviz2',
                 name='rviz_avia',
                 arguments=['-d', rviz_file],
-                prefix=['nice '],
+                prefix=['rviz2 '],
             )
         ])
     ])

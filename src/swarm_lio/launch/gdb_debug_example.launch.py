@@ -45,7 +45,7 @@ def generate_launch_description():
                 executable='rviz2',
                 name='rviz',
                 arguments=['-d', rviz_cfg],
-                prefix=['nice '],
+                prefix=['rviz2 '],
             )
         ], condition=IfCondition(LaunchConfiguration('rviz')))
     )

@@ -1296,6 +1296,9 @@ int main(int argc, char **argv) {
 //    }
     printf("Drone ID: %d\n", drone_id);
     cout << "Run Swarm LIO" << endl;
+    cout << " Lidar topic: " << lid_topic << endl;
+    cout << " IMU topic: " << imu_topic << endl;
+
     //Swarm LIO
     shared_ptr<Multi_UAV> swarm(new Multi_UAV(node, drone_id));
 
