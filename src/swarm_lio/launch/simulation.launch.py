@@ -7,16 +7,20 @@ import os
 import tempfile
 
 
-def make_rviz_config(template_path: str, prefix: str) -> str:
+def make_rviz_config(template_path: str, prefix: str, bot_id: int) -> str:
     with open(template_path, 'r') as f:
         text = f.read()
 
     text = text.replace('BOT_PREFIX', prefix)
 
-    tmp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.rviz')
-    tmp.write(text)
-    tmp.close()
-    return tmp.name
+    # Put a predictable name into /tmp so the RViz title is readable
+    cfg_dir = tempfile.gettempdir()
+    cfg_path = os.path.join(cfg_dir, f'Bot{bot_id}.rviz')
+
+    with open(cfg_path, 'w') as f:
+        f.write(text)
+
+    return cfg_path
 
 
 def generate_launch_description():
@@ -66,16 +70,26 @@ def generate_launch_description():
         # --- Launch one RViz per requested bot ---
         for bot_id in rviz_ids:
             bot_prefix = f'/quad{bot_id}'
-            rviz_config = make_rviz_config(rviz_template, bot_prefix)
+            rviz_config = make_rviz_config(rviz_template, bot_prefix, bot_id)
 
             actions.append(
                 Node(
                     package='rviz2',
                     executable='rviz2',
                     name=f'rviz_{bot_id}',
-                    arguments=['-d', rviz_config],
-                    output='screen',
+                    arguments=[
+                        '-d', rviz_config,
+                        '--ros-args',
+                        '--log-level', 'error',          # or 'fatal' if you want only crashes
+                        '--disable-stdout-logs',         # no logs to terminal
+                        # optionally also:
+                        # '--disable-rosout-logs',
+                        # '--disable-external-lib-logs',
+                    ],
+                    output='log',
+                    emulate_tty=False,
                 )
+
             )
 
         return actions

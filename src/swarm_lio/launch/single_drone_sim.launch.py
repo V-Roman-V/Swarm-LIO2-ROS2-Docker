@@ -32,9 +32,9 @@ def launch_setup(context, *args, **kwargs):
 
     # override drone specific params using drone_id
     params['common/drone_id'] = int(drone_id)
-    params['common/lid_topic'] = f'bot{drone_id}/lidar_points'
+    params['common/lid_topic'] = f'bot{drone_id}/lidar_points/points'
     params['common/imu_topic'] = f'bot{drone_id}/imu'
-    params['sub_gt_pose_topic'] = f"/quad_{drone_id}/lidar_slam/odom"
+    params['sub_gt_pose_topic'] = f"/quad{drone_id}/gt/odom"
 
     print(
         f"Launching drone {drone_id} with LIDAR topic {params['common/lid_topic']} "
