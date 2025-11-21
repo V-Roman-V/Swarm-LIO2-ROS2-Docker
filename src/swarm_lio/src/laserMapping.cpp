@@ -712,12 +712,12 @@ void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>:
         lidar_to_world.block<3, 1>(0, 3) = state.rot_end * offset_T_L_I + state.pos_end;
         Matrix4d lidar_to_gravity = G_T_I0 * lidar_to_world;
         make_pcl_unorganized(*laserCloudFullRes);        
-        pcl::transformPointCloud(*laserCloudFullRes, *laserCloudWorld, lidar_to_gravity, /*copy_all_fields=*/false);
+        pcl::transformPointCloud(*laserCloudFullRes, *laserCloudWorld, lidar_to_gravity);
 
 
         //Convert all original points into gravity-aligned world frame
         make_pcl_unorganized(*feats_down_lidar);
-        pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorldSparse, lidar_to_gravity, /*copy_all_fields=*/false);
+        pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorldSparse, lidar_to_gravity);
 
 
         sensor_msgs::msg::PointCloud2 laserCloudmsg;
@@ -747,7 +747,7 @@ void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>:
         lidar_to_world.block<3, 1>(0, 3) = state.rot_end * offset_T_L_I + state.pos_end;
         Matrix4d body_to_gravity = G_T_I0 * lidar_to_world;
         make_pcl_unorganized(*feats_down_lidar);
-        pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorld, body_to_gravity, /*copy_all_fields=*/false);
+        pcl::transformPointCloud(*feats_down_lidar, *laserCloudWorld, body_to_gravity);
 
         *pcl_wait_save += *laserCloudWorld;
         static int scan_wait_num = 0;
@@ -769,7 +769,7 @@ void publish_frame_body(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::
     lidar_to_body.block<3,3>(0,0) = offset_R_L_I;
     lidar_to_body.block<3,1>(0,3) = offset_T_L_I;
     make_pcl_unorganized(*feats_undistort_lidar);
-    pcl::transformPointCloud(*feats_undistort_lidar, *laserCloudFullResBody, lidar_to_body, /*copy_all_fields=*/false);
+    pcl::transformPointCloud(*feats_undistort_lidar, *laserCloudFullResBody, lidar_to_body);
     sensor_msgs::msg::PointCloud2 laserCloudmsg;
     pcl::toROSMsg(*laserCloudFullResBody, laserCloudmsg);
     laserCloudmsg.header.stamp = stamp_from_sec(lidar_end_time);
@@ -1545,7 +1545,7 @@ int main(int argc, char **argv) {
             lidar_to_world.block<3, 3>(0, 0) = state_propagat.rot_end * offset_R_L_I;
             lidar_to_world.block<3, 1>(0, 3) = state_propagat.rot_end * offset_T_L_I + state_propagat.pos_end;
             make_pcl_unorganized(*feats_undistort_orig_lidar);
-            pcl::transformPointCloud(*feats_undistort_orig_lidar, *feats_world_temp, lidar_to_world, /*copy_all_fields=*/false);
+            pcl::transformPointCloud(*feats_undistort_orig_lidar, *feats_world_temp, lidar_to_world);
             feats_world_sliding_window.push_back(feats_world_temp);
 
             PointCloudXYZI::Ptr feats_all_in_window(new PointCloudXYZI());
@@ -1557,7 +1557,7 @@ int main(int argc, char **argv) {
             world_to_body.block<3, 3>(0, 0) = state_propagat.rot_end.transpose();
             world_to_body.block<3, 1>(0, 3) = - state_propagat.rot_end.transpose() * state_propagat.pos_end;
             make_pcl_unorganized(*feats_all_in_window);
-            pcl::transformPointCloud(*feats_all_in_window, *feats_merged_body, world_to_body, /*copy_all_fields=*/false);
+            pcl::transformPointCloud(*feats_all_in_window, *feats_merged_body, world_to_body);
 
 
             //Predict Temporary Tracker
@@ -1673,7 +1673,7 @@ int main(int argc, char **argv) {
                     ikdtree.set_downsample_param(filter_size_map_min);
                     feats_down_world->resize(feats_down_size);
                     make_pcl_unorganized(*feats_undistort_lidar);
-                    pcl::transformPointCloud(*feats_undistort_lidar, *feats_down_world, lidar_to_world, /*copy_all_fields=*/false);
+                    pcl::transformPointCloud(*feats_undistort_lidar, *feats_down_world, lidar_to_world);
                     ikdtree.Build(feats_down_world->points);
                 }
                 continue;
