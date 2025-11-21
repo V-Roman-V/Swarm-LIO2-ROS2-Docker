@@ -303,7 +303,7 @@ void imu_prop_callback() {
         return;
     }
     mtx_buffer_imu_prop.lock();
-    new_imu = false; //控制propagate频率和IMU频率一致
+    new_imu = false; // keep propagation frequency consistent with IMU frequency
     if (imu_prop_enable && !prop_imu_buffer.empty()) {
         static double last_t_from_lidar_end_time = 0;
         if (state_update_flg) {
@@ -537,7 +537,7 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
         while (!ptr.empty() && !timestamp_lidar.empty()) {
             lidar_buffer.push_back(ptr.front());
             ptr.pop_front();
-            time_buffer.push_back(timestamp_lidar.front() / double(1000));//单位:s
+            time_buffer.push_back(timestamp_lidar.front() / double(1000)); // unit: s
             timestamp_lidar.pop_front();
         }
     } else {
@@ -613,11 +613,11 @@ bool sync_packages(MeasureGroup &meas) {
             mtx_buffer_lidar.unlock();
             return false;
         }
-        meas.lidar_beg_time = time_buffer.front(); //单位s
+        meas.lidar_beg_time = time_buffer.front(); // unit: s
         if (lidar_type == SIM)
             lidar_end_time = meas.lidar_beg_time;
         else
-            lidar_end_time = meas.lidar_beg_time + meas.lidar->points.back().curvature / double(1000); //单位:s
+            lidar_end_time = meas.lidar_beg_time + meas.lidar->points.back().curvature / double(1000); // unit: s
         lidar_pushed = true;
     }
 
@@ -921,7 +921,7 @@ void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>
     geometry_msgs::msg::Point p[8];
     double length = rect_size.y()/2, width = rect_size.x()/2, hight =
             rect_size.z();
-    //vis_pos_world是目标物的坐标
+    // vis_pos_world is the target object coordinates
     p[0].x = head(0) - width;
     p[0].y = head(1) + length;
     p[0].z = head(2) + 0.3;
@@ -946,11 +946,11 @@ void VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::msg::Marker>
     p[7].x = head(0) + width;
     p[7].y = head(1) + length;
     p[7].z = head(2) + 0.3;
-    //LINE_STRIP类型仅仅将line_strip.points中相邻的两个点相连，如0和1，1和2，2和3
+    // LINE_STRIP only connects adjacent points in line_strip.points, such as 0 and 1, 1 and 2, 2 and 3
     for (int i = 0; i < 8; i++) {
         line_strip.points.push_back(p[i]);
     }
-    //为了保证矩形框的八条边都存在：
+    // to ensure that all eight edges of the rectangular box exist:
     line_strip.points.push_back(p[0]);
     line_strip.points.push_back(p[3]);
     line_strip.points.push_back(p[2]);
@@ -1454,13 +1454,13 @@ int main(int argc, char **argv) {
             double start_time = node->now().seconds();
             TimeConsuming time_all("Total time per scan");
             print_log = false;
-            //1s 10次 print log
+            // print log 10 times per second
             if(frame_num % (original_frequency / 10) == 0){
                 print_log = true;
                 cout << endl << endl << endl << CYAN << " -- [NEW SCAN " << frame_num << ", Drone ID " << drone_id << "]" << RESET << endl;
             }
 
-            //1s一次print cpu status
+            // print CPU status once per second
             if(frame_num % original_frequency == 0){
                 float cpu_usage_ratio = CpuMemoryQuery::GetCpuUsageRatio(current_pid);
                 float memory_usage = CpuMemoryQuery::GetMemoryUsage(current_pid);
@@ -1514,15 +1514,15 @@ int main(int argc, char **argv) {
 
             p_imu->Process(Measures, state, feats_undistort_orig_lidar);
             unbiased_gyr = p_imu->unbiased_gyr;
-            //feats_undistort_orig_lidar是L_k系中无畸变的点云坐标 (原始点云数目)
+            // feats_undistort_orig_lidar is the undistorted point cloud in the L_k frame (original number of points)
             if (feats_undistort_orig_lidar->empty() || (feats_undistort_orig_lidar == NULL)) {
                 RCLCPP_WARN(rclcpp::get_logger("laserMapping"), "FAST-LIO not ready, no points stored.");
                 continue;
             }
 
-            //清除NaN点
+            // remove NaN points
             std::vector<int> indices_all;
-            feats_undistort_orig_lidar->is_dense = false; //必须设置为false，才会剔除NaN点
+            feats_undistort_orig_lidar->is_dense = false; // must be set to false to remove NaN points
             pcl::removeNaNFromPointCloud(*feats_undistort_orig_lidar, *feats_undistort_orig_lidar, indices_all);
 
 
@@ -1655,8 +1655,8 @@ int main(int argc, char **argv) {
             lasermap_fov_segment();
 
             /*** downsample the points in a scan ***/
-            downSizeFilterSurf.setInputCloud(feats_undistort_lidar);// L_k系的无畸变点云坐标
-            downSizeFilterSurf.filter(*feats_down_lidar);         //降采样后L_k系的无畸变点云坐标
+            downSizeFilterSurf.setInputCloud(feats_undistort_lidar); // undistorted point cloud in the L_k frame
+            downSizeFilterSurf.filter(*feats_down_lidar);         // downsampled undistorted point cloud in the L_k frame
 
             if(print_log){
 //                cout << " -- [feats_undistort_lidar size]   " << feats_undistort_lidar->points.size() << endl;
@@ -1731,7 +1731,7 @@ int main(int argc, char **argv) {
                 cout  << RESET << endl;
             }
 
-            //ESIKF迭代开始
+            // ESIKF iteration starts
             bool degeneration_detected = false;
             mutual_observe_noise = mutual_observe_noise_;
             TimeConsuming time_ekf("EKF time per scan");
@@ -1747,11 +1747,11 @@ int main(int argc, char **argv) {
         #pragma omp parallel for
         #endif
                 for (int i = 0; i < feats_down_size; i++) {
-                    PointType &point_lidar = feats_down_lidar->points[i];  //L_k系
-                    PointType &point_world = feats_down_world->points[i];  //World系
+                    PointType &point_lidar = feats_down_lidar->points[i];  // L_k frame
+                    PointType &point_world = feats_down_world->points[i];  // world frame
                     V3D p_body(point_lidar.x, point_lidar.y, point_lidar.z);
                     /// transform to world frame
-                    pointBodyToWorld(&point_lidar, &point_world); // L_k系转换到World系 (中间还有一步雷达IMU外参的转换)
+                    pointBodyToWorld(&point_lidar, &point_world); // transform from L_k frame to world frame (with an intermediate LiDAR-IMU extrinsic transform)
                     vector<float> pointSearchSqDis(NUM_MATCH_POINTS);
                     auto &points_near = Nearest_Points[i];
                     uint8_t search_flag = 0;
@@ -1783,7 +1783,7 @@ int main(int argc, char **argv) {
 
                         if (s > 0.9) {
                             point_selected_surf[i] = true;
-                            //每一个点对应平面的法向量
+                            // normal vector of the plane corresponding to each point
                             normvec->points[i].x = pabcd(0);
                             normvec->points[i].y = pabcd(1);
                             normvec->points[i].z = pabcd(2);
@@ -1827,7 +1827,7 @@ int main(int argc, char **argv) {
                 for (int i = 0; i < effect_feat_num; i++) {
                     const PointType &laser_p = laserCloudOri->points[i];
                     V3D point_this_L(laser_p.x, laser_p.y, laser_p.z);
-                    V3D point_this = offset_R_L_I * point_this_L + offset_T_L_I;   //L_k系下的点投影到I_k坐标系
+                    V3D point_this = offset_R_L_I * point_this_L + offset_T_L_I;   // point in the L_k frame projected to the I_k frame
                     M3D point_crossmat;
                     point_crossmat << SKEW_SYM_MATRX(point_this);
 
@@ -1858,7 +1858,7 @@ int main(int argc, char **argv) {
                     int start_col = 18 + index * 6;
                     auto iter_id = find(teammateID_with_active_observation.begin(), teammateID_with_active_observation.end(), id);
                     if(iter_id != teammateID_with_active_observation.end()){
-                        //Active Observation: 自身观察到队友
+                        // Active Observation: self observes the teammate
                         V3D active_observation_meas = Zero3d;
                         int start_row = effect_feat_num + index * 6;
                         //Jacobian matrix of Active Observation Measurements
@@ -1909,7 +1909,7 @@ int main(int argc, char **argv) {
                         }
                     }
 
-                    //Passive Observation: 队友观察到自己
+                    // Passive Observation: teammate observes self
                     iter_id = find(teammateID_with_passive_observation.begin(), teammateID_with_passive_observation.end(), id);
                     if(iter_id != teammateID_with_passive_observation.end()){
                         V3D passive_observation_meas = Zero3d;
@@ -2115,14 +2115,14 @@ int main(int argc, char **argv) {
             publish_odometry(pubLidarSlamOdom);
 
             /******* Multi-UAV Publish quadstate *******/
-            //高频率发布自身odom
+            // publish own odom at high frequency
             swarm->PublishQuadstate(p_imu->unbiased_gyr, lidar_end_time, first_lidar_time);
 
             if(frame_num % (original_frequency/10) == 0){
-                //10Hz发布世界系外参和队友odom
+                // publish world-frame extrinsics and teammates' odom at 10 Hz
                 swarm->PublishGlobalExtrinsic(lidar_end_time);
                 swarm->PublishConnectedTeammateList(lidar_end_time);
-                //10Hz更新可视化
+                // update visualization at 10 Hz
                 VisualizeDrone(pubDrone);
                 if(lidar_type != SIM)
                     swarm->PublishTeammateOdom(lidar_end_time);
@@ -2140,7 +2140,7 @@ int main(int argc, char **argv) {
             /*** add the points to map kdtree ***/
 
             map_incremental();
-            kdtree_size_end = ikdtree.size(); //ikd-tree地图中的点数
+            kdtree_size_end = ikdtree.size(); // number of points in the ikd-tree map
 
             
             /******* Publish points *******/
