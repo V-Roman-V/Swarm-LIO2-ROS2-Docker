@@ -26,7 +26,7 @@ def make_rviz_config(template_path: str, prefix: str, bot_id: int) -> str:
 def generate_launch_description():
     declare_bot_list = DeclareLaunchArgument(
         "bot_list",
-        default_value="1,2,3",
+        default_value="1,2,3,4",
         description="Comma-separated list of bot IDs to simulate",
     )
 
