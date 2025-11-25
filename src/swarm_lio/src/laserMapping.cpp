@@ -95,6 +95,7 @@ string topic_name_prefix;
 int frame_num_in_sliding_window;
 double text_scale, mesh_scale;
 double degeneration_thresh;
+double ground_height_threshold;
 
 //IMU propagation Parameters
 StatesGroup imu_propagate, latest_ekf_state;
@@ -761,6 +762,22 @@ void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>:
             scan_wait_num = 0;
         }
     }
+
+    static int map_frequency = 20; // Publish Map every 20 frames
+    static int map_pub_counter = 0;
+    map_pub_counter++;
+    // publish downsampled local map
+    if (pub_map && pub_map->get_subscription_count() > 0 && (map_pub_counter % map_frequency == 0) && !pcl_wait_save->empty()) {
+        downsample_filter_map.setInputCloud(pcl_wait_save);
+        downsample_filter_map.filter(*downsampled_map);
+
+        sensor_msgs::msg::PointCloud2 map_msg;
+        pcl::toROSMsg(*downsampled_map, map_msg);
+        map_msg.header.stamp = stamp_from_sec(lidar_end_time);
+        map_msg.header.frame_id = topic_name_prefix + "world";
+
+        pub_map->publish(map_msg);
+    }
 }
 
 void publish_frame_body(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubCloudRegisteredBody_) {
@@ -1282,6 +1299,7 @@ int main(int argc, char **argv) {
     frame_num_in_sliding_window= node->declare_parameter<int>("multiuav/frame_num_in_sliding_window", original_frequency/10);
     mutual_observe_noise_      = node->declare_parameter<double>("multiuav/mutual_observe_noise", 0.001);
     degeneration_thresh        = node->declare_parameter<double>("multiuav/degeneration_thresh", 30.0);
+    ground_height_threshold    = node->declare_parameter<double>("multiuav/ground_height_threshold", 0.0);
     imu_prop_enable            = node->declare_parameter<bool>("imu_propagate/enable", false);
     imu_prop_topic             = node->declare_parameter<string>("imu_propagate/topic", "lidar_slam/imu_propagate");
     filter_acc_en              = node->declare_parameter<bool>("imu_propagate/filter_acc_en", false);
@@ -1546,7 +1564,16 @@ int main(int argc, char **argv) {
             lidar_to_world.block<3, 1>(0, 3) = state_propagat.rot_end * offset_T_L_I + state_propagat.pos_end;
             make_pcl_unorganized(*feats_undistort_orig_lidar);
             pcl::transformPointCloud(*feats_undistort_orig_lidar, *feats_world_temp, lidar_to_world);
-            feats_world_sliding_window.push_back(feats_world_temp);
+
+            // filter ground points: feats_world_temp
+            PointCloudXYZI::Ptr feats_world_temp_filtered(new PointCloudXYZI());
+            for (const auto& pt : feats_world_temp->points) {
+                if (pt.z >= ground_height_threshold) {
+                    feats_world_temp_filtered->points.push_back(pt);
+                }
+            }
+
+            feats_world_sliding_window.push_back(feats_world_temp_filtered);
 
             PointCloudXYZI::Ptr feats_all_in_window(new PointCloudXYZI());
             for (int i = 0; i < feats_world_sliding_window.size(); ++i) {
@@ -1561,6 +1588,8 @@ int main(int argc, char **argv) {
 
 
             //Predict Temporary Tracker
+            std::cout << "[DEBUG] Step: Predicting temporary trackers, current temp_tracker size = "
+                      << swarm->temp_tracker.size() << std::endl;
             for (int i = 0; i < swarm->temp_tracker.size(); ++i) {
                 swarm->PredictTemporaryTracker(lidar_end_time, i);
             }
@@ -1585,11 +1614,15 @@ int main(int argc, char **argv) {
             TimeConsuming time_cluster1("Clustering1");
             swarm->ClusterExtractPredictRegion(lidar_end_time, feats_merged_body);
             double cluster_time1 = time_cluster1.stop() * 1000;
+            std::cout << "[DEBUG] Step: ClusterExtractPredictRegion done, time_ms = "
+                      << cluster_time1 << std::endl;
 
             //Detect and segment highly-reflective points
             TimeConsuming time_cluster2("Clustering2");
             swarm->ClusterExtractHighIntensity(lidar_end_time, feats_merged_body);
             double cluster_time2 = time_cluster2.stop() * 1000;
+            std::cout << "[DEBUG] Step: ClusterExtractHighIntensity done, time_ms = "
+                      << cluster_time2 << std::endl;
 
             //Update Teammate Tracker
             TimeConsuming time_tracking("Tracking");
@@ -1613,6 +1646,26 @@ int main(int argc, char **argv) {
                     swarm->VisualizePredictRegion(lidar_end_time,id);
                     swarm->VisualizeTeammateTracker(lidar_end_time, id);
 
+                }
+            }
+            // Print teammate positions:
+            if (print_log) {
+                std::cout << "  [DEBUG] Teammate relative positions:" << std::endl;
+                for (auto &kv : swarm->teammate_tracker) {
+                    int id = kv.first;
+                    auto &tracker = kv.second;
+                    V3D pos_world = tracker.get_state_pos();               // world frame
+                    V3D rel_world = pos_world - state.pos_end;             // teammate - self
+                    V3D rel_body  = state.rot_end.transpose() * rel_world; // body frame
+
+                    std::cout << "    Teammate " << id
+                            << " rel_world = (" << rel_world.x() << ", "
+                                                << rel_world.y() << ", "
+                                                << rel_world.z() << ")"
+                            << " rel_body = ("  << rel_body.x()  << ", "
+                                                << rel_body.y()  << ", "
+                                                << rel_body.z()  << ")"
+                            << std::endl;
                 }
             }
 
@@ -1639,6 +1692,8 @@ int main(int argc, char **argv) {
 
             //If there is NEW highly reflective object
             swarm->CreateTempTrackerByHighIntensity(lidar_end_time);
+            std::cout << "[DEBUG] Step: High-intensity temporary trackers count = "
+                      << swarm->temp_tracker.size() << std::endl;
 
             //Visualize Temporary Tracker
             swarm->VisualizeTempTracker(lidar_end_time);
@@ -2124,8 +2179,7 @@ int main(int argc, char **argv) {
                 swarm->PublishConnectedTeammateList(lidar_end_time);
                 // update visualization at 10 Hz
                 VisualizeDrone(pubDrone);
-                if(lidar_type != SIM)
-                    swarm->PublishTeammateOdom(lidar_end_time);
+                swarm->PublishTeammateOdom(lidar_end_time);
 
             }
             publish_mavros(mavros_pose_publisher);
@@ -2141,6 +2195,8 @@ int main(int argc, char **argv) {
 
             map_incremental();
             kdtree_size_end = ikdtree.size(); // number of points in the ikd-tree map
+            std::cout << "[DEBUG] Step: Map updated, ikd-tree size = "
+                      << kdtree_size_end << std::endl;
 
             
             /******* Publish points *******/

@@ -1105,7 +1105,7 @@ bool Multi_UAV::CreateTeammateTracker(const double &lidar_end_time, const int &i
     double second_large_singular_value = svd.singularValues()(1);
 
 
-    if(print_log && second_large_singular_value > 30)
+    if(print_log && second_large_singular_value > 1)
         cout << " -- [Temp " << temp_tracker[index].id << "] Trajectory Matching Threshold = " << BOLDYELLOW
              << second_large_singular_value
              << RESET << endl;
