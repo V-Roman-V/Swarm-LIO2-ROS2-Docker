@@ -114,6 +114,18 @@ rosidl_target_interfaces(swarm_lio
   "rosidl_typesupport_cpp"
 )
 
+add_executable(global_map_node src/global_map_node.cpp)
+ament_target_dependencies(global_map_node
+  rclcpp
+  sensor_msgs
+  swarm_msgs
+  pcl_conversions
+  PCL
+)
+install(TARGETS global_map_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_export_dependencies(
   geometry_msgs nav_msgs sensor_msgs std_msgs visualization_msgs tf2 tf2_ros pcl_ros pcl_conversions
 )
