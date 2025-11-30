@@ -8,6 +8,7 @@ email: zhufc@connect.hku.hk
 #include "MultiUAV.h"
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <cmath>
 
 template <typename PointT>
 inline void make_pcl_unorganized(pcl::PointCloud<PointT>& c) {
@@ -23,6 +24,25 @@ static inline builtin_interfaces::msg::Time stamp_from_sec(double sec) {
     t.nanosec = static_cast<uint32_t>(nsec % 1000000000);
     return t;
 }
+
+static inline double yaw_from_rot(const M3D& R) {
+    return std::atan2(R(1, 0), R(0, 0));
+}
+
+static inline M3D rotz(double yaw) {
+    const double c = std::cos(yaw), s = std::sin(yaw);
+    M3D R;
+    R << c, -s, 0,
+         s,  c, 0,
+         0,  0, 1;
+    return R;
+}
+
+static inline void project_extrinsic_se2(M3D& R, V3D& t) {
+    R = rotz(yaw_from_rot(R));
+    t(2) = 0.0;
+}
+
 
 template <class T>
 string Multi_UAV::SetString(T &param_in) {
@@ -253,6 +273,8 @@ void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus:
         M3D rot_jk = EulerToRotM(rot_jk_rad);
         V3D trans_jk = V3D(msg->extrinsic[k].trans[0], msg->extrinsic[k].trans[1], msg->extrinsic[k].trans[2]);
 
+        project_extrinsic_se2(rot_jk, trans_jk);
+
         mars::EdgeData edge;
         edge.from = id_j;
         edge.to = id_k;
@@ -287,6 +309,11 @@ void Multi_UAV::UpdateFactorGraph(const bool &print_log) {
 
     TimeConsuming time_graph("Solve Graph");
     extrinsic_infection.SolveGraphIsam2(state);
+    for (auto iter = teammates.begin(); iter != teammates.end(); ++iter) {
+        const int id = iter->first;
+        if (state.global_extrinsic_trans[id].norm() > 1e-3)
+            project_extrinsic_se2(state.global_extrinsic_rot[id], state.global_extrinsic_trans[id]);
+    }
     if (print_log)
         cout << " -- [Graph Solve Time] " << time_graph.stop() * 1000 << " ms"<< endl;
 }
@@ -1042,47 +1069,52 @@ bool Multi_UAV::TrajMatching(vector<Vector3d> &dyn_positions,
                              Matrix3d &Rot,
                              Vector3d &trans,
                              double &Coeff,
-                             const int &id) {
-    // 相互定位计算两台无人机的世界坐标系转换关系
-    // dyn_positions是本机观测到到的动态物体在自己世界系下的运动轨迹，
-    // 将与本机收到的其他无人机传过来的LIO（在队友自己的世界坐标系下）轨迹uav_positions进行匹配
-    // 算法原理就是SVD分解求R,t
-    V3D dyn_mean = Zero3d;
-    V3D uav_mean = Zero3d;
-    for (size_t i = 0; i < dyn_positions.size(); ++i) {
-        dyn_mean += dyn_positions[i];
-        uav_mean += uav_positions[i];
-    }
+                             const int &id)
+{
 
-    dyn_mean /= double(uav_positions.size());
+    if (dyn_positions.size() != uav_positions.size() || dyn_positions.size() < 5)
+        return false;
+
+    Eigen::Vector2d dyn_mean = Eigen::Vector2d::Zero();
+    Eigen::Vector2d uav_mean = Eigen::Vector2d::Zero();
+    for (size_t i = 0; i < dyn_positions.size(); ++i) {
+        dyn_mean += dyn_positions[i].head<2>();
+        uav_mean += uav_positions[i].head<2>();
+    }
+    dyn_mean /= double(dyn_positions.size());
     uav_mean /= double(uav_positions.size());
 
-
-    M3D H = M3D::Zero();
+    Eigen::Matrix2d H = Eigen::Matrix2d::Zero();
     for (size_t i = 0; i < dyn_positions.size(); ++i) {
-        H += (uav_positions[i] - uav_mean) * (dyn_positions[i] - dyn_mean).transpose();
+        H += (uav_positions[i].head<2>() - uav_mean) * (dyn_positions[i].head<2>() - dyn_mean).transpose();
     }
 
-    JacobiSVD<MatrixXd> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    Eigen::JacobiSVD<Eigen::Matrix2d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
 
-    //反射修正
-    M3D mirror = M3D::Identity();
-    mirror(2, 2) = (svd.matrixV() * svd.matrixU().transpose()).determinant();
-    Rot = svd.matrixV() * mirror * svd.matrixU().transpose();
-    trans = dyn_mean - Rot * uav_mean;
+    Eigen::Matrix2d mirror = Eigen::Matrix2d::Identity();
+    mirror(1, 1) = (svd.matrixV() * svd.matrixU().transpose()).determinant();
+
+    const Eigen::Matrix2d R2 = svd.matrixV() * mirror * svd.matrixU().transpose();
+    const double yaw = std::atan2(R2(1, 0), R2(0, 0));
+    Rot = rotz(yaw);
+
+    const Eigen::Vector2d t2 = dyn_mean - R2 * uav_mean;
+    trans = V3D(t2(0), t2(1), 0.0);
 
     double total_match_err = 0.0;
     for (size_t i = 0; i < dyn_positions.size(); ++i) {
-        total_match_err += (dyn_positions[i] - Rot * uav_positions[i] - trans).norm();
+        const Eigen::Vector2d e = dyn_positions[i].head<2>() - R2 * uav_positions[i].head<2>() - t2;
+        total_match_err += e.norm();
     }
 
-    double ave_match_err = total_match_err / double(dyn_positions.size());
+    const double ave_match_err = total_match_err / double(dyn_positions.size());
     cout << " -- [Trajectory Match] Average Matching Error: " << ave_match_err << endl;
 
     if (ave_match_err > ave_match_error_thresh)
         return false;
 
-    Coeff = ave_match_err / (svd.singularValues()(0) * svd.singularValues()(1)) * 1000;
+    const double denom = std::max(1e-12, svd.singularValues()(0) * svd.singularValues()(1));
+    Coeff = ave_match_err / denom * 1000.0;
     return true;
 }
 
@@ -1090,18 +1122,18 @@ bool Multi_UAV::CreateTeammateTracker(const double &lidar_end_time, const int &i
                                       StatesGroup &state_prop, const bool &print_log) {
     auto dyn_pos_time = temp_tracker[index].dyn_pos_time;
     //Assess if the tracker's trajectory is excited enough
-    V3D dyn_mean = Zero3d;
+    Eigen::Vector2d dyn_mean = Eigen::Vector2d::Zero();
     for (size_t i = 0; i < dyn_pos_time.size(); ++i)
-        dyn_mean += dyn_pos_time[i].block<3, 1>(0, 0);
+        dyn_mean += dyn_pos_time[i].block<2, 1>(0, 0);
     dyn_mean /= double(dyn_pos_time.size());
 
-    M3D H = M3D::Zero();
+    Eigen::Matrix2d H = Eigen::Matrix2d::Zero();
     for (size_t i = 0; i < dyn_pos_time.size(); ++i) {
-        H += (dyn_pos_time[i].block<3, 1>(0, 0) - dyn_mean) *
-             (dyn_pos_time[i].block<3, 1>(0, 0) - dyn_mean).transpose();
+        const Eigen::Vector2d d = dyn_pos_time[i].block<2, 1>(0, 0) - dyn_mean;
+        H += d * d.transpose();
     }
 
-    JacobiSVD<MatrixXd> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    Eigen::JacobiSVD<Eigen::Matrix2d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
     double second_large_singular_value = svd.singularValues()(1);
 
 
@@ -1145,6 +1177,7 @@ bool Multi_UAV::CreateTeammateTracker(const double &lidar_end_time, const int &i
 
 
                 if (TrajMatching(dyn_pos, uav_pos, rot, trans, noise, id)) {
+                    project_extrinsic_se2(rot, trans);
                     cout << BOLDMAGENTA << "R: " << RotMtoEuler(rot).transpose() * 57.3 << " deg" << endl
                          << "t: " << trans.transpose() << " m" << RESET << endl;
                     state.global_extrinsic_rot[id] = state_prop.global_extrinsic_rot[id] = rot;

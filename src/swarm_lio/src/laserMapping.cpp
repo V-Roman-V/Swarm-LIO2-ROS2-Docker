@@ -66,7 +66,7 @@ int kdtree_delete_counter = 0, kdtree_size_st = 0, kdtree_size_end = 0, add_poin
 int lidar_type, pcd_save_interval = -1, pcd_index = 0;
 bool lidar_pushed, flg_reset, flg_exit = false, flg_EKF_inited = true;
 bool imu_en = true;
-bool scan_pub_en = false, dense_pub_en = false, scan_body_pub_en = false;
+bool scan_pub_en = false, dense_pub_en = false, scan_body_pub_en = false, local_map_pub_en = false;
 bool runtime_pos_log = false, pcd_save_en = false, path_en = true;
 double pcd_resolution = 0.03;;
 // LiDAR-IMU Parameters
@@ -763,20 +763,23 @@ void publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>:
         }
     }
 
-    static int map_frequency = 20; // Publish Map every 20 frames
-    static int map_pub_counter = 0;
-    map_pub_counter++;
-    // publish downsampled local map
-    if (pub_map && pub_map->get_subscription_count() > 0 && (map_pub_counter % map_frequency == 0) && !pcl_wait_save->empty()) {
-        downsample_filter_map.setInputCloud(pcl_wait_save);
-        downsample_filter_map.filter(*downsampled_map);
+    if (local_map_pub_en){
+        static int map_frequency = 20; // Publish Map every 20 frames
+        static int map_pub_counter = 0;
+        map_pub_counter++;
 
-        sensor_msgs::msg::PointCloud2 map_msg;
-        pcl::toROSMsg(*downsampled_map, map_msg);
-        map_msg.header.stamp = stamp_from_sec(lidar_end_time);
-        map_msg.header.frame_id = topic_name_prefix + "world";
+        // publish downsampled local map
+        if (pub_map && pub_map->get_subscription_count() > 0 && (map_pub_counter % map_frequency == 0) && !pcl_wait_save->empty()) {
+            downsample_filter_map.setInputCloud(pcl_wait_save);
+            downsample_filter_map.filter(*downsampled_map);
 
-        pub_map->publish(map_msg);
+            sensor_msgs::msg::PointCloud2 map_msg;
+            pcl::toROSMsg(*downsampled_map, map_msg);
+            map_msg.header.stamp = stamp_from_sec(lidar_end_time);
+            map_msg.header.frame_id = topic_name_prefix + "world";
+
+            pub_map->publish(map_msg);
+        }
     }
 }
 
@@ -1287,6 +1290,7 @@ int main(int argc, char **argv) {
     scan_pub_en            = node->declare_parameter<bool>("publish/scan_publish_en", true);
     dense_pub_en           = node->declare_parameter<bool>("publish/dense_publish_en", true);
     scan_body_pub_en       = node->declare_parameter<bool>("publish/scan_bodyframe_pub_en", false);
+    local_map_pub_en       = node->declare_parameter<bool>("publish/local_map_pub_en", false);
     runtime_pos_log        = node->declare_parameter<bool>("runtime_pos_log_enable", false);
     pcd_save_en            = node->declare_parameter<bool>("pcd_save/pcd_save_en", false);
     pcd_resolution         = node->declare_parameter<double>("pcd_save/pcd_resolution", 0.03);

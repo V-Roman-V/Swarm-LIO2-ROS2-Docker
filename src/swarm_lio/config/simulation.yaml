@@ -8,8 +8,8 @@ ros__parameters:
   multiuav:
       cluster_extraction_in_predict_region: true
       inten_threshold: 1000
-      ground_height_threshold: -0.6  # remove all points below this height (meter)
-      min_high_inten_cluster_size: 4
+      ground_height_threshold: -0.115  # remove all points below this height (meter)
+      min_high_inten_cluster_size: 2
       min_cluster_size: 3 # Unused
       predict_region_radius: 0.7
       temp_predict_region_radius: 0.7
@@ -53,7 +53,7 @@ ros__parameters:
       b_acc_cov: 0.001
       b_gyr_cov: 0.001
       det_range: 20.0
-      LI_extrinsic_T: [ 0.0, 0.0, -0.08 ]
+      LI_extrinsic_T: [ 0.0, 0.0, -0.095 ]
       LI_extrinsic_R: [ 1.0, 0.0, 0.0,
                         0.0, 1.0, 0.0,
                         0.0, 0.0, 1.0]
@@ -68,6 +68,7 @@ ros__parameters:
       scan_publish_en:  true       # false: close all the point cloud output
       dense_publish_en: false       # false: low down the points number in a global-frame point clouds scan.
       scan_bodyframe_pub_en: false  # true: output the point cloud scans in IMU body frame
+      local_map_pub_en: true      # true: publish the local map point cloud
 
   pcd_save:
       pcd_save_en: true
