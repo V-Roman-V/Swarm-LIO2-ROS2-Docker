@@ -21,6 +21,7 @@
 #include <ifaddrs.h>
 #include "cpu_memory_query.h"
 #include "malloc.h"
+#include <rclcpp/create_timer.hpp>
 
 // Added for ROS2 markers & tf2 geometry (minimal)
 #include <visualization_msgs/msg/marker.hpp>
@@ -1427,9 +1428,19 @@ int main(int argc, char **argv) {
     pubImuPropOdom = node->create_publisher<nav_msgs::msg::Odometry>(
             "/" + topic_name_prefix + imu_prop_topic, rclcpp::SystemDefaultsQoS());
 
-    auto imu_prop_timer = node->create_wall_timer(std::chrono::milliseconds(4), [](){ imu_prop_callback(); });
+    auto imu_prop_timer = rclcpp::create_timer(
+            node->get_node_base_interface(),
+            node->get_node_timers_interface(),
+            node->get_clock(),
+            std::chrono::milliseconds(4),
+            [](){ imu_prop_callback(); });
 
-    auto timer = node->create_wall_timer(std::chrono::milliseconds(10), [](){ TimerCbk(); });
+    auto timer = rclcpp::create_timer(
+            node->get_node_base_interface(),
+            node->get_node_timers_interface(),
+            node->get_clock(),
+            std::chrono::milliseconds(10),
+            [](){ TimerCbk(); });
 
     pubFilteredImu = node->create_publisher<sensor_msgs::msg::Imu>(
             "/" + topic_name_prefix + "imu/data_filtered", rclcpp::SystemDefaultsQoS());

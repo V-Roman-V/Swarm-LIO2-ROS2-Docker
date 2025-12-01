@@ -1,4 +1,5 @@
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/create_timer.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <swarm_msgs/msg/global_extrinsic_status.hpp>
 
@@ -65,7 +66,10 @@ public:
             "/global_downsampled_map", rclcpp::SystemDefaultsQoS());
 
         // publish at low rate to avoid heavy load
-        timer_ = this->create_wall_timer(
+        timer_ = rclcpp::create_timer(
+            this->get_node_base_interface(),
+            this->get_node_timers_interface(),
+            this->get_clock(),
             std::chrono::milliseconds(500),
             std::bind(&GlobalMapNode::publishGlobalMap, this));
 

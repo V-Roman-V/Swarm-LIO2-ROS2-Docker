@@ -35,6 +35,11 @@ def generate_launch_description():
         default_value="",
         description="Comma-separated list of bot IDs to visualize in RViz (defaults to first bot only)",
     )
+    declare_use_sim_time = DeclareLaunchArgument(
+        "use_sim_time",
+        default_value="true",
+        description="Use simulation time from /clock"
+    )
 
     pkg_share = get_package_share_directory('swarm_lio')
     launch_dir = os.path.join(pkg_share, 'launch')
@@ -44,6 +49,7 @@ def generate_launch_description():
     def launch_everything(context, *args, **kwargs):
         actions = []
         bot_ids = [int(x) for x in context.launch_configurations["bot_list"].split(',')]
+        use_sim_time = context.launch_configurations.get('use_sim_time', 'true')
 
         # --- Launch sim for each bot ---
         for bot_id in bot_ids:
@@ -55,7 +61,8 @@ def generate_launch_description():
                     ),
                     launch_arguments={
                         'drone_id': str(bot_id),
-                        'output_mode': output_mode
+                        'output_mode': output_mode,
+                        'use_sim_time': use_sim_time,
                     }.items()
                 )
             )
@@ -97,5 +104,6 @@ def generate_launch_description():
     return LaunchDescription([
         declare_bot_list,
         declare_rviz_list,
+        declare_use_sim_time,
         OpaqueFunction(function=launch_everything),
     ])
