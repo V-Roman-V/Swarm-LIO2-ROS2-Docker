@@ -169,6 +169,19 @@ inline void make_pcl_unorganized(PointCloudXYZI &c) {
     c.is_dense = true;
 }
 
+static inline double yawFromRot(const M3D& R) {
+    return std::atan2(R(1,0), R(0,0));
+}
+static inline M3D rotZ(double yaw) {
+    Eigen::AngleAxisd aa(yaw, Eigen::Vector3d::UnitZ());
+    return aa.toRotationMatrix();
+}
+static inline void projectExtrinsicSE2(M3D& R, V3D& t) {
+    const double yaw = yawFromRot(R);
+    R = rotZ(yaw);
+    t.z() = 0.0;
+}
+
 Matrix4d T_inverse(const Matrix4d T) {
     Matrix4d T_out = Matrix4d::Identity();
     T_out.col(3).head(3) = -T.block<3, 3>(0, 0).transpose() * T.col(3).head(3);
@@ -368,7 +381,7 @@ void imu_prop_callback() {
         geometry_msgs::msg::TransformStamped ts1;
         ts1.header.stamp = imu_prop_odom.header.stamp;
         ts1.header.frame_id = topic_name_prefix + "world";
-        ts1.child_frame_id = "quad" + SetString(drone_id) + "_imu_propagation";
+        ts1.child_frame_id = "bot" + SetString(drone_id) + "_imu_propagation";
         ts1.transform.translation.x = imu_prop_odom.pose.pose.position.x;
         ts1.transform.translation.y = imu_prop_odom.pose.pose.position.y;
         ts1.transform.translation.z = imu_prop_odom.pose.pose.position.z;
@@ -828,7 +841,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     if (!(std::isfinite(qn)) || qn < 1e-6) return;  // avoid TF_DENORMALIZED_QUATERNION
 
     odomAftMapped.header.frame_id = topic_name_prefix + "world";
-    odomAftMapped.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
+    odomAftMapped.child_frame_id = "bot" + SetString(drone_id) + "_aft_mapped";
 
 
     odomAftMapped.header.stamp = stamp_from_sec(lidar_end_time);
@@ -844,7 +857,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     geometry_msgs::msg::TransformStamped ts;
     ts.header.stamp = odomAftMapped.header.stamp;
     ts.header.frame_id = topic_name_prefix + "world";
-    ts.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
+    ts.child_frame_id = "bot" + SetString(drone_id) + "_aft_mapped";
     ts.transform.translation.x = odomAftMapped.pose.pose.position.x;
     ts.transform.translation.y = odomAftMapped.pose.pose.position.y;
     ts.transform.translation.z = odomAftMapped.pose.pose.position.z;
@@ -1309,6 +1322,18 @@ int main(int argc, char **argv) {
     imu_prop_topic             = node->declare_parameter<string>("imu_propagate/topic", "lidar_slam/imu_propagate");
     filter_acc_en              = node->declare_parameter<bool>("imu_propagate/filter_acc_en", false);
 
+    // --- Mutual-observe constraints / robustification ---
+    bool   mo_force_extrinsic_se2      = node->declare_parameter<bool>("multiuav/mo_force_extrinsic_se2", true);
+    double mo_prior_rp_deg             = node->declare_parameter<double>("multiuav/mo_prior_rollpitch_deg", 2.0);
+    double mo_prior_z_m                = node->declare_parameter<double>("multiuav/mo_prior_z_m", 0.05);
+
+    bool   mo_ignore_z_meas            = node->declare_parameter<bool>("multiuav/mo_ignore_z_meas", true);
+    double mo_z_noise_scale            = node->declare_parameter<double>("multiuav/mo_z_noise_scale", 100.0);
+
+    double mo_gate_residual_norm       = node->declare_parameter<double>("multiuav/mo_gate_residual_norm", 1.0);
+    double mo_gate_residual_z          = node->declare_parameter<double>("multiuav/mo_gate_residual_z", 0.25);
+    double mo_gate_rollpitch_deg       = node->declare_parameter<double>("multiuav/mo_gate_rollpitch_deg", 15.0);
+
     //Automatically Acquire IP
 //    string local_ip;
 //    if(lidar_type != SIM && get_local_ip(local_ip)){
@@ -1346,7 +1371,7 @@ int main(int argc, char **argv) {
 
     topic_name_prefix = "";
     if(lidar_type == SIM)
-        topic_name_prefix = "quad" + SetString(drone_id) + "/";
+        topic_name_prefix = "bot" + SetString(drone_id) + "/";
 
     path.header.stamp = stamp_from_sec(lidar_end_time);
     path.header.frame_id = topic_name_prefix + "world";
@@ -1385,12 +1410,12 @@ int main(int argc, char **argv) {
 
     /*** debug record ***/
     ofstream fout_out, fout_global_extrin, fout_solve_time, fout_cpu_memory, fout_cov;
-    fout_out.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_state.txt"), ios::out);
-    fout_pose.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_pose.txt"), ios::out);
-//    fout_global_extrin.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_global_extrinsic.txt"), ios::out);
-    fout_solve_time.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_solve_time.txt"), ios::out);
-    fout_cpu_memory.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_cpu_memory.txt"), ios::out);
-//    fout_cov.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_cov.txt"), ios::out);
+    fout_out.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_state.txt"), ios::out);
+    fout_pose.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_pose.txt"), ios::out);
+//    fout_global_extrin.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_global_extrinsic.txt"), ios::out);
+    fout_solve_time.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_solve_time.txt"), ios::out);
+    fout_cpu_memory.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_cpu_memory.txt"), ios::out);
+//    fout_cov.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_cov.txt"), ios::out);
     if (fout_out)
         cout << "~~~~" << ROOT_DIR << " file opened" << endl;
     else
@@ -1937,45 +1962,59 @@ int main(int argc, char **argv) {
 
 
                         M3D R_ao_ij = swarm->GetActiveMutualObserveMeasurementNoise(degeneration_detected, state, id, iter_teammate->second, mutual_observe_noise);
-                        MD(12, 3) HsubT_R_inv_;
-                        for (int i = 0; i < 4; ++i) {
-                            HsubT_R_inv_.block<3,3>(3 * i,0) = Jacob_case1.block<3,3>(0,3 * i).transpose() * R_ao_ij.inverse();
+
+                        bool use_ao = true;
+                        if (mo_gate_residual_norm > 0.0 && active_observation_meas.norm() > mo_gate_residual_norm) use_ao = false;
+                        if (mo_gate_residual_z > 0.0 && std::abs(active_observation_meas.z()) > mo_gate_residual_z) use_ao = false;
+
+                        if (mo_ignore_z_meas) {
+                            // downweight z heavily (approx "2D measurement")
+                            R_ao_ij(0,2) = R_ao_ij(2,0) = 0.0;
+                            R_ao_ij(1,2) = R_ao_ij(2,1) = 0.0;
+                            R_ao_ij(2,2) *= mo_z_noise_scale;
                         }
 
-                        for (int i = 0; i < 3; ++i) {
-                            for (int j = 0; j < 3; ++j) {
-                                //Jacobian of Attitude
-                                tripletsHsub.push_back(Triplet<double>
-                                                               (start_row + i, j, Jacob_case1(i, j)));
-                                //Jacobian of Position
-                                tripletsHsub.push_back(Triplet<double>
-                                                               (start_row + i, j + 3, Jacob_case1(i, j + 3)));
-                                //Jacobian of Attitude
-                                tripletsHsubT.push_back(Triplet<double>
-                                                                (j, start_row + i, HsubT_R_inv_(j,i)));
-                                //Jacobian of Position
-                                tripletsHsubT.push_back(Triplet<double>
-                                                                ( j + 3,start_row + i, HsubT_R_inv_(j + 3,i)));
+                        if (use_ao) {
+                            MD(12, 3) HsubT_R_inv_;
+                            for (int i = 0; i < 4; ++i) {
+                                HsubT_R_inv_.block<3,3>(3 * i,0) = Jacob_case1.block<3,3>(0,3 * i).transpose() * R_ao_ij.inverse();
+                            }
 
-                                if(!degeneration_detected){
-                                    //Jacobian of Global Extrinsic Rotation
+                            for (int i = 0; i < 3; ++i) {
+                                for (int j = 0; j < 3; ++j) {
+                                    //Jacobian of Attitude
                                     tripletsHsub.push_back(Triplet<double>
-                                                                   (start_row + i, start_col + j, Jacob_case1(i, j + 6)));
-                                    //Jacobian of Global Extrinsic Translation
+                                                                (start_row + i, j, Jacob_case1(i, j)));
+                                    //Jacobian of Position
                                     tripletsHsub.push_back(Triplet<double>
-                                                                   (start_row + i, start_col + j + 3, Jacob_case1(i, j + 9)));
-                                    //Jacobian of Global Extrinsic Rotation
+                                                                (start_row + i, j + 3, Jacob_case1(i, j + 3)));
+                                    //Jacobian of Attitude
                                     tripletsHsubT.push_back(Triplet<double>
-                                                                    ( start_col + j, start_row + i, HsubT_R_inv_(j + 6,i)));
-                                    //Jacobian of Global Extrinsic Translation
+                                                                    (j, start_row + i, HsubT_R_inv_(j,i)));
+                                    //Jacobian of Position
                                     tripletsHsubT.push_back(Triplet<double>
-                                                                    ( start_col + j + 3, start_row + i, HsubT_R_inv_(j + 9,i)));
+                                                                    ( j + 3,start_row + i, HsubT_R_inv_(j + 3,i)));
+
+                                    if(!degeneration_detected){
+                                        //Jacobian of Global Extrinsic Rotation
+                                        tripletsHsub.push_back(Triplet<double>
+                                                                    (start_row + i, start_col + j, Jacob_case1(i, j + 6)));
+                                        //Jacobian of Global Extrinsic Translation
+                                        tripletsHsub.push_back(Triplet<double>
+                                                                    (start_row + i, start_col + j + 3, Jacob_case1(i, j + 9)));
+                                        //Jacobian of Global Extrinsic Rotation
+                                        tripletsHsubT.push_back(Triplet<double>
+                                                                        ( start_col + j, start_row + i, HsubT_R_inv_(j + 6,i)));
+                                        //Jacobian of Global Extrinsic Translation
+                                        tripletsHsubT.push_back(Triplet<double>
+                                                                        ( start_col + j + 3, start_row + i, HsubT_R_inv_(j + 9,i)));
+                                    }
                                 }
                             }
-                        }
 
-                        for (int k = 0; k < 3; ++k) {
-                            triplets_meas_vec.push_back(Triplet<double>(start_row + k, 0, - active_observation_meas(k)));
+                            for (int k = 0; k < 3; ++k) {
+                                triplets_meas_vec.push_back(Triplet<double>(start_row + k, 0, - active_observation_meas(k)));
+                            }
                         }
                     }
 
@@ -1988,39 +2027,52 @@ int main(int argc, char **argv) {
                         MD(3, 12) Jacob_case2 = swarm->JacobianPassiveObserve(passive_observation_meas,
                                                                               id, iter_teammate->second, lidar_end_time);
                         M3D R_po_ij = swarm->GetPassiveMutualObserveMeasurementNoise(degeneration_detected, state, id, iter_teammate->second,lidar_end_time,mutual_observe_noise);
-                        MD(12, 3) HsubT_R_inv_;
-                        for (int i = 0; i < 4; ++i) {
-                            HsubT_R_inv_.block<3,3>(3 * i,0) = Jacob_case2.block<3,3>(0,3 * i).transpose() * R_po_ij.inverse();
-                        }
-                        for (int i = 0; i < 3; ++i) {
-                            for (int j = 0; j < 3; ++j) {
-                                //Jacobian of Velocity
-                                tripletsHsub.push_back(Triplet<double>
-                                                               (start_row + i, j + 6, Jacob_case2(i, j)));
-                                tripletsHsubT.push_back(Triplet<double>
-                                                                (j + 6, start_row + i,HsubT_R_inv_(j,i)));
-                                //Jacobian of Position
-                                tripletsHsub.push_back(Triplet<double>
-                                                               (start_row + i, j + 3, Jacob_case2(i, j + 3)));
-                                tripletsHsubT.push_back(Triplet<double>
-                                                                (j + 3, start_row + i, HsubT_R_inv_(j + 3,i)));
 
-                                if(!degeneration_detected){
-                                    //Jacobian of Global Extrinsic Rotation
+                        bool use_po = true;
+                        if (mo_gate_residual_norm > 0.0 && passive_observation_meas.norm() > mo_gate_residual_norm) use_po = false;
+                        if (mo_gate_residual_z > 0.0 && std::abs(passive_observation_meas.z()) > mo_gate_residual_z) use_po = false;
+
+                        if (mo_ignore_z_meas) {
+                            R_po_ij(0,2) = R_po_ij(2,0) = 0.0;
+                            R_po_ij(1,2) = R_po_ij(2,1) = 0.0;
+                            R_po_ij(2,2) *= mo_z_noise_scale;
+                        }
+
+                        if (use_po) {
+                            MD(12, 3) HsubT_R_inv_;
+                            for (int i = 0; i < 4; ++i) {
+                                HsubT_R_inv_.block<3,3>(3 * i,0) = Jacob_case2.block<3,3>(0,3 * i).transpose() * R_po_ij.inverse();
+                            }
+                            for (int i = 0; i < 3; ++i) {
+                                for (int j = 0; j < 3; ++j) {
+                                    //Jacobian of Velocity
                                     tripletsHsub.push_back(Triplet<double>
-                                                                   (start_row + i, start_col + j,Jacob_case2(i, j + 6)));
+                                                                (start_row + i, j + 6, Jacob_case2(i, j)));
                                     tripletsHsubT.push_back(Triplet<double>
-                                                                    (start_col + j, start_row + i, HsubT_R_inv_(j + 6,i)));
-                                    //Jacobian of Global Extrinsic Translation
+                                                                    (j + 6, start_row + i,HsubT_R_inv_(j,i)));
+                                    //Jacobian of Position
                                     tripletsHsub.push_back(Triplet<double>
-                                                                   (start_row + i, start_col + j + 3,Jacob_case2(i, j + 9)));
+                                                                (start_row + i, j + 3, Jacob_case2(i, j + 3)));
                                     tripletsHsubT.push_back(Triplet<double>
-                                                                    (start_col + j + 3, start_row + i,HsubT_R_inv_(j + 9,i)));
+                                                                    (j + 3, start_row + i, HsubT_R_inv_(j + 3,i)));
+
+                                    if(!degeneration_detected){
+                                        //Jacobian of Global Extrinsic Rotation
+                                        tripletsHsub.push_back(Triplet<double>
+                                                                    (start_row + i, start_col + j,Jacob_case2(i, j + 6)));
+                                        tripletsHsubT.push_back(Triplet<double>
+                                                                        (start_col + j, start_row + i, HsubT_R_inv_(j + 6,i)));
+                                        //Jacobian of Global Extrinsic Translation
+                                        tripletsHsub.push_back(Triplet<double>
+                                                                    (start_row + i, start_col + j + 3,Jacob_case2(i, j + 9)));
+                                        tripletsHsubT.push_back(Triplet<double>
+                                                                        (start_col + j + 3, start_row + i,HsubT_R_inv_(j + 9,i)));
+                                    }
                                 }
                             }
-                        }
-                        for (int k = 0; k < 3; ++k) {
-                            triplets_meas_vec.push_back(Triplet<double>(start_row + k, 0, - passive_observation_meas(k)));
+                            for (int k = 0; k < 3; ++k) {
+                                triplets_meas_vec.push_back(Triplet<double>(start_row + k, 0, - passive_observation_meas(k)));
+                            }
                         }
                     }
                 }
@@ -2080,6 +2132,19 @@ int main(int argc, char **argv) {
                 SparseMatrix<double> I_mat;
                 I_mat.resize(NEW_DIM_STATE, NEW_DIM_STATE);
                 I_mat.setIdentity();
+                if (!degeneration_detected) {
+                    const double srp = mo_prior_rp_deg * M_PI / 180.0;
+                    const double var_rp = srp * srp;
+                    const double var_z  = mo_prior_z_m * mo_prior_z_m;
+
+                    for (int i = 0; i < teammate_num_with_observation; ++i) {
+                        const int base = 18 + i * 6;     // marginalized index
+                        state_cov(base + 0, base + 0) = std::min(state_cov(base + 0, base + 0), var_rp); // rot x ~ roll
+                        state_cov(base + 1, base + 1) = std::min(state_cov(base + 1, base + 1), var_rp); // rot y ~ pitch
+                        state_cov(base + 5, base + 5) = std::min(state_cov(base + 5, base + 5), var_z);  // trans z
+                    }
+                }
+
                 SparseLU<SparseMatrix<double>> solver2;
                 solver2.compute(H_T_H + state_cov.inverse());
                 auto K1 = solver2.solve(I_mat);
@@ -2114,6 +2179,19 @@ int main(int argc, char **argv) {
 
                 //state update
                 state += solution;
+                if (!degeneration_detected) {
+                    for (int k = 0; k < teammate_num_with_observation; ++k) {
+                        const int id_dbg = teammateID_with_observation[k];
+
+                        const V3D e = RotMtoEuler(state.global_extrinsic_rot[id_dbg]) * 57.29577951308232;
+                        const bool rp_bad = (std::abs(e.x()) > mo_gate_rollpitch_deg) || (std::abs(e.y()) > mo_gate_rollpitch_deg);
+
+                        if (mo_force_extrinsic_se2 || rp_bad) {
+                            projectExtrinsicSE2(state.global_extrinsic_rot[id_dbg], state.global_extrinsic_trans[id_dbg]);
+                        }
+                    }
+                }
+
                 swarm->state = state;
                 rot_add = solution.block<3, 1>(0, 0);
                 T_add = solution.block<3, 1>(3, 0);
