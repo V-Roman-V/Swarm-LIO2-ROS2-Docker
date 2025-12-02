@@ -74,6 +74,23 @@ def generate_launch_description():
         else:
             rviz_ids = [bot_ids[0]] if bot_ids else []
 
+        # --- Publish extrinsics between robots ---
+        if bot_ids:
+            actions.append(
+                Node(
+                    package='swarm_lio',
+                    executable='robot_extrinsic_publisher',
+                    name='robot_extrinsic_publisher',
+                    parameters=[{
+                        'root_id': int(bot_ids[0]),
+                        'robot_ids': bot_ids,
+                        'robot_prefix': 'bot',
+                        'robot_frame_suffix': 'world',
+                    }],
+                    output='log',
+                )
+            )
+
         # --- Launch one RViz per requested bot ---
         for bot_id in rviz_ids:
             bot_prefix = f'/bot{bot_id}'
