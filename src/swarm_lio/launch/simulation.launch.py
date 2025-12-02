@@ -49,7 +49,8 @@ def generate_launch_description():
     def launch_everything(context, *args, **kwargs):
         actions = []
         bot_ids = [int(x) for x in context.launch_configurations["bot_list"].split(',')]
-        use_sim_time = context.launch_configurations.get('use_sim_time', 'true')
+        use_sim_time_str = context.launch_configurations.get('use_sim_time', 'true')
+        use_sim_time_bool = str(use_sim_time_str).lower() in ('true', '1', 'yes')
 
         # --- Launch sim for each bot ---
         for bot_id in bot_ids:
@@ -62,10 +63,26 @@ def generate_launch_description():
                     launch_arguments={
                         'drone_id': str(bot_id),
                         'output_mode': output_mode,
-                        'use_sim_time': use_sim_time,
+                        'use_sim_time': use_sim_time_str,
                     }.items()
                 )
             )
+            actions.append(
+                Node(
+                    package='tf2_ros',
+                    executable='static_transform_publisher',
+                    name=f'bot{bot_id}_aft_mapped_to_base_link_static_tf',
+                    arguments=[ # Identity transform
+                        '--x', '0', '--y', '0', '--z', '0',
+                        '--roll', '0', '--pitch', '0', '--yaw', '0',
+                        '--frame-id', f'bot{bot_id}/aft_mapped',
+                        '--child-frame-id', f'bot{bot_id}/base_link',
+                    ],
+                    parameters=[{'use_sim_time': use_sim_time_bool}],
+                    output='log',
+                )
+            )
+
 
         # --- Decide which bots get RViz ---
         rviz_list_str = context.launch_configurations.get('rviz_list', '').strip()
@@ -86,6 +103,7 @@ def generate_launch_description():
                         'robot_ids': bot_ids,
                         'robot_prefix': 'bot',
                         'robot_frame_suffix': 'world',
+                        'use_sim_time': use_sim_time_bool,
                     }],
                     output='log',
                 )
