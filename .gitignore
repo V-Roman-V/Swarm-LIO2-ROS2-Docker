@@ -48,3 +48,6 @@ docker-compose.override.yml
 # MATLAB
 *.asv
 *.m~
+
+# Point clouds
+*.pcd
