@@ -76,7 +76,7 @@ def generate_launch_description():
 
         # --- Launch one RViz per requested bot ---
         for bot_id in rviz_ids:
-            bot_prefix = f'/quad{bot_id}'
+            bot_prefix = f'/bot{bot_id}'
             rviz_config = make_rviz_config(rviz_template, bot_prefix, bot_id)
 
             actions.append(

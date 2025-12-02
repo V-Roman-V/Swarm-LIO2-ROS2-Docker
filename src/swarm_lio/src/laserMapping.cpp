@@ -381,7 +381,7 @@ void imu_prop_callback() {
         geometry_msgs::msg::TransformStamped ts1;
         ts1.header.stamp = imu_prop_odom.header.stamp;
         ts1.header.frame_id = topic_name_prefix + "world";
-        ts1.child_frame_id = "quad" + SetString(drone_id) + "_imu_propagation";
+        ts1.child_frame_id = "bot" + SetString(drone_id) + "_imu_propagation";
         ts1.transform.translation.x = imu_prop_odom.pose.pose.position.x;
         ts1.transform.translation.y = imu_prop_odom.pose.pose.position.y;
         ts1.transform.translation.z = imu_prop_odom.pose.pose.position.z;
@@ -841,7 +841,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     if (!(std::isfinite(qn)) || qn < 1e-6) return;  // avoid TF_DENORMALIZED_QUATERNION
 
     odomAftMapped.header.frame_id = topic_name_prefix + "world";
-    odomAftMapped.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
+    odomAftMapped.child_frame_id = "bot" + SetString(drone_id) + "_aft_mapped";
 
 
     odomAftMapped.header.stamp = stamp_from_sec(lidar_end_time);
@@ -857,7 +857,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     geometry_msgs::msg::TransformStamped ts;
     ts.header.stamp = odomAftMapped.header.stamp;
     ts.header.frame_id = topic_name_prefix + "world";
-    ts.child_frame_id = "quad" + SetString(drone_id) + "_aft_mapped";
+    ts.child_frame_id = "bot" + SetString(drone_id) + "_aft_mapped";
     ts.transform.translation.x = odomAftMapped.pose.pose.position.x;
     ts.transform.translation.y = odomAftMapped.pose.pose.position.y;
     ts.transform.translation.z = odomAftMapped.pose.pose.position.z;
@@ -1371,7 +1371,7 @@ int main(int argc, char **argv) {
 
     topic_name_prefix = "";
     if(lidar_type == SIM)
-        topic_name_prefix = "quad" + SetString(drone_id) + "/";
+        topic_name_prefix = "bot" + SetString(drone_id) + "/";
 
     path.header.stamp = stamp_from_sec(lidar_end_time);
     path.header.frame_id = topic_name_prefix + "world";
@@ -1410,12 +1410,12 @@ int main(int argc, char **argv) {
 
     /*** debug record ***/
     ofstream fout_out, fout_global_extrin, fout_solve_time, fout_cpu_memory, fout_cov;
-    fout_out.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_state.txt"), ios::out);
-    fout_pose.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_pose.txt"), ios::out);
-//    fout_global_extrin.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_global_extrinsic.txt"), ios::out);
-    fout_solve_time.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_solve_time.txt"), ios::out);
-    fout_cpu_memory.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_cpu_memory.txt"), ios::out);
-//    fout_cov.open(DEBUG_FILE_DIR("quad" + SetString(drone_id) + "_cov.txt"), ios::out);
+    fout_out.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_state.txt"), ios::out);
+    fout_pose.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_pose.txt"), ios::out);
+//    fout_global_extrin.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_global_extrinsic.txt"), ios::out);
+    fout_solve_time.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_solve_time.txt"), ios::out);
+    fout_cpu_memory.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_cpu_memory.txt"), ios::out);
+//    fout_cov.open(DEBUG_FILE_DIR("bot" + SetString(drone_id) + "_cov.txt"), ios::out);
     if (fout_out)
         cout << "~~~~" << ROOT_DIR << " file opened" << endl;
     else
@@ -2132,6 +2132,19 @@ int main(int argc, char **argv) {
                 SparseMatrix<double> I_mat;
                 I_mat.resize(NEW_DIM_STATE, NEW_DIM_STATE);
                 I_mat.setIdentity();
+                if (!degeneration_detected) {
+                    const double srp = mo_prior_rp_deg * M_PI / 180.0;
+                    const double var_rp = srp * srp;
+                    const double var_z  = mo_prior_z_m * mo_prior_z_m;
+
+                    for (int i = 0; i < teammate_num_with_observation; ++i) {
+                        const int base = 18 + i * 6;     // marginalized index
+                        state_cov(base + 0, base + 0) = std::min(state_cov(base + 0, base + 0), var_rp); // rot x ~ roll
+                        state_cov(base + 1, base + 1) = std::min(state_cov(base + 1, base + 1), var_rp); // rot y ~ pitch
+                        state_cov(base + 5, base + 5) = std::min(state_cov(base + 5, base + 5), var_z);  // trans z
+                    }
+                }
+
                 SparseLU<SparseMatrix<double>> solver2;
                 solver2.compute(H_T_H + state_cov.inverse());
                 auto K1 = solver2.solve(I_mat);
@@ -2166,6 +2179,19 @@ int main(int argc, char **argv) {
 
                 //state update
                 state += solution;
+                if (!degeneration_detected) {
+                    for (int k = 0; k < teammate_num_with_observation; ++k) {
+                        const int id_dbg = teammateID_with_observation[k];
+
+                        const V3D e = RotMtoEuler(state.global_extrinsic_rot[id_dbg]) * 57.29577951308232;
+                        const bool rp_bad = (std::abs(e.x()) > mo_gate_rollpitch_deg) || (std::abs(e.y()) > mo_gate_rollpitch_deg);
+
+                        if (mo_force_extrinsic_se2 || rp_bad) {
+                            projectExtrinsicSE2(state.global_extrinsic_rot[id_dbg], state.global_extrinsic_trans[id_dbg]);
+                        }
+                    }
+                }
+
                 swarm->state = state;
                 rot_add = solution.block<3, 1>(0, 0);
                 T_add = solution.block<3, 1>(3, 0);
