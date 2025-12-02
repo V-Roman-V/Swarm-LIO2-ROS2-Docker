@@ -114,15 +114,15 @@ rosidl_target_interfaces(swarm_lio
   "rosidl_typesupport_cpp"
 )
 
-add_executable(global_map_node src/global_map_node.cpp)
-ament_target_dependencies(global_map_node
+add_executable(robot_extrinsic_publisher src/robot_extrinsic_publisher.cpp)
+ament_target_dependencies(robot_extrinsic_publisher
   rclcpp
-  sensor_msgs
+  geometry_msgs
   swarm_msgs
-  pcl_conversions
-  PCL
+  tf2
+  tf2_ros
 )
-install(TARGETS global_map_node
+install(TARGETS robot_extrinsic_publisher
   DESTINATION lib/${PROJECT_NAME}
 )
 
