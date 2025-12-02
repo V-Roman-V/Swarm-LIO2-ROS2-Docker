@@ -365,7 +365,7 @@ void Multi_UAV::PublishQuadstate(const V3D &unbiased_gyr, const double &lidar_en
     quadstate_msg_pub.header.stamp = stamp_from_sec(lidar_end_time);
     quadstate_msg_pub.header.frame_id = topic_name_prefix + "world";
     if (lidar_type == SIM)
-        quadstate_msg_pub.child_frame_id = "bot" + SetString(drone_id) + "_aft_mapped";
+        quadstate_msg_pub.child_frame_id = "bot" + SetString(drone_id) + "/aft_mapped";
     else
         quadstate_msg_pub.child_frame_id = "aft_mapped";
     quadstate_msg_pub.drone_id = drone_id;
@@ -1403,7 +1403,7 @@ void Multi_UAV::PublishTeammateOdom(const double &lidar_end_time){
         //Use global extrinsic to transform teammate position into self gravity frame
         V3D teammate_pos_gravity = rot_world_to_gravity * (state.global_extrinsic_rot[teammate_id] * iter_teammate->second.teammate_state.pos_end + state.global_extrinsic_trans[teammate_id]);
         TeammateOdom.header.frame_id = topic_name_prefix + "world";
-        TeammateOdom.child_frame_id = "bot" + SetString(teammate_id) + "_aft_mapped";
+        TeammateOdom.child_frame_id = "bot" + SetString(teammate_id) + "/aft_mapped";
         TeammateOdom.header.stamp = stamp_from_sec(lidar_end_time);
         TeammateOdom.pose.pose.position.x = teammate_pos_gravity(0);
         TeammateOdom.pose.pose.position.y = teammate_pos_gravity(1);

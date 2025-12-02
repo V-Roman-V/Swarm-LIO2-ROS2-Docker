@@ -13,7 +13,7 @@ ros__parameters:
       min_cluster_size: 3 # Unused
       predict_region_radius: 0.7
       temp_predict_region_radius: 0.7
-      traj_matching_start_thresh: 15.0
+      traj_matching_start_thresh: 8.0
       ave_match_error_thresh: 0.2
       pos_num_in_traj: 200
       reset_tracker_thresh: 5.0

@@ -841,7 +841,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     if (!(std::isfinite(qn)) || qn < 1e-6) return;  // avoid TF_DENORMALIZED_QUATERNION
 
     odomAftMapped.header.frame_id = topic_name_prefix + "world";
-    odomAftMapped.child_frame_id = "bot" + SetString(drone_id) + "_aft_mapped";
+    odomAftMapped.child_frame_id = "bot" + SetString(drone_id) + "/aft_mapped";
 
 
     odomAftMapped.header.stamp = stamp_from_sec(lidar_end_time);
@@ -857,7 +857,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     geometry_msgs::msg::TransformStamped ts;
     ts.header.stamp = odomAftMapped.header.stamp;
     ts.header.frame_id = topic_name_prefix + "world";
-    ts.child_frame_id = "bot" + SetString(drone_id) + "_aft_mapped";
+    ts.child_frame_id = "bot" + SetString(drone_id) + "/aft_mapped";
     ts.transform.translation.x = odomAftMapped.pose.pose.position.x;
     ts.transform.translation.y = odomAftMapped.pose.pose.position.y;
     ts.transform.translation.z = odomAftMapped.pose.pose.position.z;
