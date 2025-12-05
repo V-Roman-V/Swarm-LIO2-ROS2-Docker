@@ -36,7 +36,7 @@ def launch_setup(context, *args, **kwargs):
     params['common/drone_id'] = int(drone_id)
     params['common/lid_topic'] = f'bot{drone_id}/lidar_points/points'
     params['common/imu_topic'] = f'bot{drone_id}/imu'
-    params['sub_gt_pose_topic'] = f"/quad{drone_id}/gt/odom"
+    params['sub_gt_pose_topic'] = f"/bot{drone_id}/gt/odom"
     params['use_sim_time'] = use_sim_time
 
     print(
