@@ -17,7 +17,7 @@
 
 using namespace std;
 using namespace Eigen;
-#define MAX_DRONE_ID (5) //集群中最大的飞机编号
+#define MAX_DRONE_ID (20) //集群中最大的飞机编号
 
 // #define DEBUG_PRINT
 #define DEPLOY

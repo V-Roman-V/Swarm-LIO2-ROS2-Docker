@@ -21,7 +21,7 @@ ros__parameters:
       valid_cluster_dist_thresh: 0.35
       mutual_observe_noise: 0.01
       frame_num_in_sliding_window: 1
-      actual_uav_num: 4
+      actual_uav_num: None  # set dynamicly in launch file
       degeneration_thresh: 3.0
 
   imu_propagate:
@@ -65,10 +65,10 @@ ros__parameters:
 
   publish:
       path_en:  true
-      scan_publish_en:  true       # false: close all the point cloud output
+      scan_publish_en:  true        # false: close all the point cloud output
       dense_publish_en: false       # false: low down the points number in a global-frame point clouds scan.
       scan_bodyframe_pub_en: false  # true: output the point cloud scans in IMU body frame
-      local_map_pub_en: true      # true: publish the local map point cloud
+      local_map_pub_en: false       # true: publish the local map point cloud
 
   pcd_save:
       pcd_save_en: true

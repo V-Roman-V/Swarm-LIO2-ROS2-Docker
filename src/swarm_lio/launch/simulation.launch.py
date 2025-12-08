@@ -24,10 +24,16 @@ def make_rviz_config(template_path: str, prefix: str, bot_id: int) -> str:
 
 
 def generate_launch_description():
+    declare_bot_count = DeclareLaunchArgument(
+        "bot_count",
+        default_value="4",
+        description="Number of bots to simulate (starting at 1). Ignored if bot_list is provided.",
+    )
+
     declare_bot_list = DeclareLaunchArgument(
         "bot_list",
-        default_value="1,2,3,4",
-        description="Comma-separated list of bot IDs to simulate",
+        default_value="",
+        description="Comma-separated list of bot IDs to simulate. Overrides bot_count when set.",
     )
 
     declare_rviz_list = DeclareLaunchArgument(
@@ -48,7 +54,18 @@ def generate_launch_description():
 
     def launch_everything(context, *args, **kwargs):
         actions = []
-        bot_ids = [int(x) for x in context.launch_configurations["bot_list"].split(',')]
+        bot_list_raw = context.launch_configurations.get("bot_list", "").strip()
+        bot_count_raw = context.launch_configurations.get("bot_count", "0").strip()
+
+        if bot_list_raw:
+            bot_ids = [int(x) for x in bot_list_raw.split(',') if x]
+        else:
+            try:
+                bot_count = int(bot_count_raw) if bot_count_raw else 0
+            except ValueError:
+                bot_count = 0
+            bot_ids = list(range(1, max(bot_count, 0) + 1))
+
         use_sim_time_str = context.launch_configurations.get('use_sim_time', 'true')
         use_sim_time_bool = str(use_sim_time_str).lower() in ('true', '1', 'yes')
 
@@ -64,6 +81,7 @@ def generate_launch_description():
                         'drone_id': str(bot_id),
                         'output_mode': output_mode,
                         'use_sim_time': use_sim_time_str,
+                        'actual_uav_num': str(len(bot_ids)),
                     }.items()
                 )
             )
@@ -137,6 +155,7 @@ def generate_launch_description():
         return actions
 
     return LaunchDescription([
+        declare_bot_count,
         declare_bot_list,
         declare_rviz_list,
         declare_use_sim_time,
