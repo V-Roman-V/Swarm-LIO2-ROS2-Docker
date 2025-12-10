@@ -126,6 +126,16 @@ install(TARGETS robot_extrinsic_publisher
   DESTINATION lib/${PROJECT_NAME}
 )
 
+add_executable(gt_extrinsic_initializer src/gt_extrinsic_initializer.cpp)
+ament_target_dependencies(gt_extrinsic_initializer
+  rclcpp
+  nav_msgs
+  swarm_msgs
+)
+install(TARGETS gt_extrinsic_initializer
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_export_dependencies(
   geometry_msgs nav_msgs sensor_msgs std_msgs visualization_msgs tf2 tf2_ros pcl_ros pcl_conversions
 )

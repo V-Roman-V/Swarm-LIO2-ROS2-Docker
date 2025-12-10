@@ -71,6 +71,7 @@ Multi_UAV::Multi_UAV(const rclcpp::Node::SharedPtr node, const int & drone_id_) 
     LoadParam("multiuav/valid_cluster_size_thresh", valid_cluster_size_thresh, 0.6);
     LoadParam("multiuav/valid_cluster_dist_thresh", valid_cluster_dist_thresh, 0.35);
     LoadParam("multiuav/actual_uav_num", actual_uav_num, 4);
+    LoadParam("bypass_initialization", bypass_initialization_, bool(false));
 
     string sub_quadstate_topic_name = "/quadstate_from_teammate";
     string sub_global_extrinsic_topic_name = "/global_extrinsic_from_teammate";
@@ -249,7 +250,7 @@ void Multi_UAV::QuadstateCbk(const swarm_msgs::msg::QuadStatePub::SharedPtr msg)
 
 
 void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus::SharedPtr msg) {
-    if (found_all_teammates || msg->drone_id == drone_id)
+    if ((!bypass_initialization_ && found_all_teammates) || msg->drone_id == drone_id)
         return;
 
     //判断队友飞机id
@@ -257,12 +258,19 @@ void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus:
 
     //与队友建立通讯后等待两秒再开始接收世界系外参信息，这两秒内其他飞机会删除reconnect的队友的外参，即ResetReconnectedGlobalExtrinsic()函数
     auto iter = teammates.find(id_j);
-    if(iter == teammates.end())
-        return;
-    else{
-        double duration = rclcpp::Time(msg->header.stamp).seconds() - iter->second.first_connect_time;
-        if(duration < 2.0 || iter->second.first_connect_time < 0)
+    if(iter == teammates.end()){
+        if(!bypass_initialization_)
             return;
+        // In bypass mode, allow GT extrinsics to initialize even before quadstate arrives.
+        Teammate teammate_placeholder;
+        teammate_placeholder.first_connect_time = rclcpp::Time(msg->header.stamp).seconds();
+        teammates.insert(id2teammate(id_j, teammate_placeholder));
+    }else{
+        if(!bypass_initialization_){
+            double duration = rclcpp::Time(msg->header.stamp).seconds() - iter->second.first_connect_time;
+            if(duration < 2.0 || iter->second.first_connect_time < 0)
+                return;
+        }
     }
 
     for (int k = 0; k < msg->extrinsic.size(); ++k) {
@@ -274,6 +282,18 @@ void Multi_UAV::GlobalExtrinsicCbk(const swarm_msgs::msg::GlobalExtrinsicStatus:
         V3D trans_jk = V3D(msg->extrinsic[k].trans[0], msg->extrinsic[k].trans[1], msg->extrinsic[k].trans[2]);
 
         project_extrinsic_se2(rot_jk, trans_jk);
+
+        // In bypass mode, consume GT extrinsic that points to this drone and seed the estimate directly.
+        if (bypass_initialization_ && id_k == drone_id) {
+            if (state.global_extrinsic_trans[id_j].norm() < 0.001) {
+                // Message gives T_j->self; store self->j (consistent with rest of pipeline)
+                M3D rot_self_j = rot_jk.transpose();
+                V3D trans_self_j = - rot_self_j * trans_jk;
+                state.global_extrinsic_rot[id_j] = rot_self_j;
+                state.global_extrinsic_trans[id_j] = trans_self_j;
+                state.cov.block<6, 6>(18 + 6 * id_j, 18 + 6 * id_j) = 1e-6 * Matrix<double, 6, 6>::Identity();
+            }
+        }
 
         mars::EdgeData edge;
         edge.from = id_j;
@@ -304,7 +324,7 @@ void Multi_UAV::ResetReconnectedGlobalExtrinsic(StatesGroup &state_in, const dou
 }
 
 void Multi_UAV::UpdateFactorGraph(const bool &print_log) {
-    if (found_all_teammates)
+    if (found_all_teammates && !bypass_initialization_)
         return;
 
     TimeConsuming time_graph("Solve Graph");
@@ -1212,6 +1232,9 @@ bool Multi_UAV::CreateTeammateTracker(const double &lidar_end_time, const int &i
 }
 
 void Multi_UAV::CreateTempTrackerByHighIntensity(const double &lidar_end_time) {
+    if(bypass_initialization_)
+        return;
+
     if(found_all_teammates)
         return;
 
@@ -1901,4 +1924,3 @@ void Multi_UAV::VisualizeRectangle(const rclcpp::Publisher<visualization_msgs::m
     line_strip.points.push_back(p[4]);
     pub_rect->publish(line_strip);
 }
-

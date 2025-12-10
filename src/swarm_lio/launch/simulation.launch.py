@@ -5,6 +5,7 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 import tempfile
+import yaml
 
 
 def make_rviz_config(template_path: str, prefix: str, bot_id: int) -> str:
@@ -24,6 +25,23 @@ def make_rviz_config(template_path: str, prefix: str, bot_id: int) -> str:
 
 
 def generate_launch_description():
+    pkg_share = get_package_share_directory('swarm_lio')
+    launch_dir = os.path.join(pkg_share, 'launch')
+    rviz_cfg_dir = os.path.join(pkg_share, 'rviz_cfg')
+    rviz_template = os.path.join(rviz_cfg_dir, 'ros2_generic.rviz')
+
+    # Derive default bypass flag from simulation.yaml, fallback to "false"
+    bypass_default = "false"
+    try:
+        params_file = os.path.join(pkg_share, 'config', 'simulation.yaml')
+        with open(params_file, 'r') as f:
+            yaml_data = yaml.safe_load(f) or {}
+        bypass_val = yaml_data.get('ros__parameters', {}).get('bypass_initialization', None)
+        if isinstance(bypass_val, bool):
+            bypass_default = "true" if bypass_val else "false"
+    except Exception:
+        pass
+
     declare_bot_count = DeclareLaunchArgument(
         "bot_count",
         default_value="4",
@@ -46,11 +64,11 @@ def generate_launch_description():
         default_value="true",
         description="Use simulation time from /clock"
     )
-
-    pkg_share = get_package_share_directory('swarm_lio')
-    launch_dir = os.path.join(pkg_share, 'launch')
-    rviz_cfg_dir = os.path.join(pkg_share, 'rviz_cfg')
-    rviz_template = os.path.join(rviz_cfg_dir, 'ros2_generic.rviz')
+    declare_bypass_initialization = DeclareLaunchArgument(
+        "bypass_initialization",
+        default_value=bypass_default,
+        description="If true, publish ground-truth extrinsics to bypass trajectory matching."
+    )
 
     def launch_everything(context, *args, **kwargs):
         actions = []
@@ -68,6 +86,8 @@ def generate_launch_description():
 
         use_sim_time_str = context.launch_configurations.get('use_sim_time', 'true')
         use_sim_time_bool = str(use_sim_time_str).lower() in ('true', '1', 'yes')
+        bypass_init_str = context.launch_configurations.get('bypass_initialization', 'false')
+        bypass_init_bool = str(bypass_init_str).lower() in ('true', '1', 'yes')
 
         # --- Launch sim for each bot ---
         for bot_id in bot_ids:
@@ -82,6 +102,7 @@ def generate_launch_description():
                         'output_mode': output_mode,
                         'use_sim_time': use_sim_time_str,
                         'actual_uav_num': str(len(bot_ids)),
+                        'bypass_initialization': bypass_init_str,
                     }.items()
                 )
             )
@@ -126,6 +147,24 @@ def generate_launch_description():
                     output='log',
                 )
             )
+        if bypass_init_bool and bot_ids:
+            actions.append(
+                Node(
+                    package='swarm_lio',
+                    executable='gt_extrinsic_initializer',
+                    name='gt_extrinsic_initializer',
+                    parameters=[{
+                        'bypass_initialization': True,
+                        'robot_ids': bot_ids,
+                        'robot_prefix': 'bot',
+                        'odom_suffix': '/gt/odom',
+                        'publish_topic': '/global_extrinsic_from_teammate',
+                        'publish_rate_hz': 5.0,
+                        'use_sim_time': use_sim_time_bool,
+                    }],
+                    output='log',
+                )
+            )
 
         # --- Launch one RViz per requested bot ---
         for bot_id in rviz_ids:
@@ -159,5 +198,6 @@ def generate_launch_description():
         declare_bot_list,
         declare_rviz_list,
         declare_use_sim_time,
+        declare_bypass_initialization,
         OpaqueFunction(function=launch_everything),
     ])

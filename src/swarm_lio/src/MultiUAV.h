@@ -379,5 +379,6 @@ private:
     nav_msgs::msg::Odometry TeammateOdom;
     bool found_all_teammates{false}, cluster_extraction_in_predict_region;
     double text_scale, mesh_scale;
+    bool bypass_initialization_{false};
 };
 #endif //MULTIUAV_H

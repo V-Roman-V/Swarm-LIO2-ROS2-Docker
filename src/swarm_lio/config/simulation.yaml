@@ -1,4 +1,6 @@
 ros__parameters:
+  bypass_initialization: true
+
   common:
       lid_topic: None  # to be replaced in launch file with drone_id
       imu_topic: None  # to be replaced in launch file with drone_id 

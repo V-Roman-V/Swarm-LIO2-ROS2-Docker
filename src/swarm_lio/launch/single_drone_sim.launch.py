@@ -23,11 +23,14 @@ def launch_setup(context, *args, **kwargs):
     output_mode = LaunchConfiguration('output_mode').perform(context)
     use_sim_time_raw = LaunchConfiguration('use_sim_time').perform(context)
     actual_uav_num_raw = LaunchConfiguration('actual_uav_num').perform(context)
+    bypass_initialization_raw = LaunchConfiguration('bypass_initialization').perform(context)
     use_sim_time = str(use_sim_time_raw).lower() in ('true', '1', 'yes', 'on')
     try:
         actual_uav_num = int(actual_uav_num_raw)
     except ValueError:
         actual_uav_num = 1
+    # default to YAML value unless an explicit launch arg is provided
+    bypass_initialization = None
 
     pkg_share = get_package_share_directory('swarm_lio')
 
@@ -44,6 +47,11 @@ def launch_setup(context, *args, **kwargs):
     params['sub_gt_pose_topic'] = f"/bot{drone_id}/gt/odom"
     params['use_sim_time'] = use_sim_time
     params['multiuav/actual_uav_num'] = actual_uav_num
+    if bypass_initialization_raw:
+        bypass_initialization = str(bypass_initialization_raw).lower() in ('true', '1', 'yes', 'on')
+    else:
+        bypass_initialization = params.get('bypass_initialization', False)
+    params['bypass_initialization'] = bypass_initialization
 
     print(
         f"Launching drone {drone_id} with LIDAR topic {params['common/lid_topic']} "
@@ -69,5 +77,6 @@ def generate_launch_description():
         DeclareLaunchArgument('output_mode', default_value='screen'),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('actual_uav_num', default_value='4'),
+        DeclareLaunchArgument('bypass_initialization', default_value=''),
         OpaqueFunction(function=launch_setup),
     ])
