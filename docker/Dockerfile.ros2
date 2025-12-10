@@ -69,15 +69,25 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_WS=/opt/swarm_lio_ws
 
 # Create colcon workspace
-RUN mkdir -p $ROS_WS/src
-WORKDIR $ROS_WS/src
-
-# Copy Swarm-LIO2 source code
-COPY src/ $ROS_WS/src/
-
-# Build the workspace
+RUN mkdir -p $ROS_WS
 WORKDIR $ROS_WS
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release"
+
+# ---- copy+build swarm_msgs ----
+COPY src/swarm_msgs/ $ROS_WS/src/swarm_msgs/
+RUN /bin/bash -lc "source /opt/ros/humble/setup.bash && \
+  colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select swarm_msgs"
+
+# ---- copy+build udp_bridge ----
+COPY src/udp_bridge/ $ROS_WS/src/udp_bridge/
+RUN /bin/bash -lc "source /opt/ros/humble/setup.bash && \
+  source $ROS_WS/install/setup.bash && \
+  colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select udp_bridge"
+
+# ---- copy+build swarm_lio ----
+COPY src/swarm_lio/ $ROS_WS/src/swarm_lio/
+RUN /bin/bash -lc "source /opt/ros/humble/setup.bash && \
+  source $ROS_WS/install/setup.bash && \
+  colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select swarm_lio"
 
 # Source ROS and workspace by default
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc

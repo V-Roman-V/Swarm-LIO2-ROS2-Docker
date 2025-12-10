@@ -1,0 +1,18 @@
+# runtime outputs (your issue)
+src/swarm_lio/Log/
+src/swarm_lio/PCD/
+bags/
+
+# common ROS/colcon build outputs
+**/build/
+**/install/
+**/log/
+
+# random artifacts
+**/*.log
+**/*.pcd
+**/*.bag
+**/*.db
+**/*.tmp
+**/.DS_Store
+**/.git/
